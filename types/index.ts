@@ -16,6 +16,12 @@ export enum VideoCategory {
   EXPERIMENTAL = 'Experimental / Art Film'
 }
 
+// --- VIDEO MODELS ---
+export enum VideoModel {
+  VEO_3_1 = 'veo-3.1-generate-preview',
+  VEO_2_0 = 'veo-2.0-generate-preview'
+}
+
 // --- ASPECT RATIOS ---
 export enum AspectRatio {
   WIDESCREEN = '16:9',
@@ -309,6 +315,9 @@ export interface ProjectConfig {
   // Audio (future)
   voiceoverEnabled: boolean;
   musicStyle?: string;
+
+  // Video Model
+  videoModel?: VideoModel;
 }
 
 // --- TRENDING ---
@@ -316,6 +325,20 @@ export interface TrendingTopic {
   title: string;
   description: string;
   url?: string;
+}
+
+// --- PROJECT METADATA ---
+export interface ProjectMetadata {
+  id: string;
+  title: string;
+  thumbnail?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectsIndex {
+  projects: ProjectMetadata[];
+  lastUpdated: string;
 }
 
 // --- PROMPT TEMPLATES ---
@@ -449,7 +472,8 @@ export function createDefaultConfig(): ProjectConfig {
     negativePrompt: 'cartoon, anime, illustration, low quality, blurry, watermark, text overlay, deformed, ugly, bad anatomy',
     colorGrading: 'professional cinematic color grading',
     filmGrain: true,
-    voiceoverEnabled: false
+    voiceoverEnabled: false,
+    videoModel: VideoModel.VEO_3_1
   };
 }
 

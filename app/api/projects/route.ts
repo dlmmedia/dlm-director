@@ -5,19 +5,19 @@
 // ========================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { 
-  getProjectsIndex, 
+import {
+  getProjectsIndex,
   createProject as createProjectInBlob,
-  saveProject 
+  saveProject
 } from '@/lib/blobService';
 import { createDefaultConfig } from '@/types';
 
 export async function GET() {
   try {
     const index = await getProjectsIndex();
-    return NextResponse.json({ 
+    return NextResponse.json({
       projects: index.projects,
-      lastUpdated: index.lastUpdated 
+      lastUpdated: index.lastUpdated
     });
   } catch (error) {
     console.error('Error listing projects:', error);
@@ -31,28 +31,29 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    console.log('API POST /api/projects - request body:', body);
     const title = body.title || 'Untitled Project';
 
-    // Create project metadata
-    const project = await createProjectInBlob(title);
-
-    // Create initial project data with default config
+    // Create default config first
     const defaultConfig = createDefaultConfig();
     defaultConfig.title = title;
 
-    await saveProject(project.id, {
-      id: project.id,
+    // Create project metadata and initial data atomically
+    console.log('Creating project in blob with title:', title);
+    const project = await createProjectInBlob(title, {
       title,
-      createdAt: project.createdAt,
-      updatedAt: project.updatedAt,
       config: defaultConfig,
     });
 
     return NextResponse.json(project, { status: 201 });
-  } catch (error) {
-    console.error('Error creating project:', error);
+  } catch (error: any) {
+    console.error('CRITICAL Error in POST /api/projects:', error);
     return NextResponse.json(
-      { error: 'Failed to create project' },
+      {
+        error: 'Failed to create project',
+        details: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
       { status: 500 }
     );
   }

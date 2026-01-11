@@ -1,60 +1,110 @@
-// ========================================
-// STEP INDICATOR COMPONENT
-// Visual progress through the workflow
-// ========================================
+'use client';
 
 import React from 'react';
+import { motion } from 'framer-motion';
 
 interface Props {
   currentStep: number;
 }
 
 const steps = [
-  { label: 'Concept', icon: '◆' },
-  { label: 'Configure', icon: '⚙' },
-  { label: 'Script', icon: '📝' },
-  { label: 'Production', icon: '🎬' }
+  { label: 'Concept', description: 'Define your vision' },
+  { label: 'Configure', description: 'Set up parameters' },
+  { label: 'Script', description: 'Review scenes' },
+  { label: 'Production', description: 'Generate content' }
 ];
+
+const CheckIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+  </svg>
+);
 
 export const StepIndicator: React.FC<Props> = ({ currentStep }) => {
   return (
-    <div className="flex flex-col items-center w-full mb-4">
-      {/* Steps row */}
-      <div className="flex items-center justify-center">
-        {steps.map(({ label, icon }, idx) => (
-          <div key={label} className="flex items-center">
-            <div className="flex flex-col items-center">
-              <div 
-                className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${
-                  idx < currentStep 
+    <div className="w-full max-w-6xl mx-auto px-6">
+      <div className="flex items-center justify-between relative">
+        {/* Background line */}
+        <div className="absolute top-5 left-0 right-0 h-[2px] bg-white/10" />
+        
+        {/* Animated progress line */}
+        <motion.div 
+          className="absolute top-5 left-0 h-[2px] bg-gradient-to-r from-green-500 via-green-400 to-dlm-accent"
+          initial={{ width: '0%' }}
+          animate={{ width: `${(currentStep / (steps.length - 1)) * 100}%` }}
+          transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
+          style={{ boxShadow: '0 0 10px rgba(34, 197, 94, 0.5)' }}
+        />
+
+        {steps.map((step, idx) => {
+          const isCompleted = idx < currentStep;
+          const isCurrent = idx === currentStep;
+
+          return (
+            <div key={step.label} className="flex flex-col items-center relative z-10">
+              {/* Step Circle */}
+              <motion.div
+                className={`
+                  w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm
+                  transition-colors duration-300 relative
+                  ${isCompleted 
                     ? 'bg-green-500/20 border-2 border-green-500 text-green-400'
-                    : idx === currentStep 
-                      ? 'bg-dlm-accent text-black shadow-[0_0_20px_rgba(212,175,55,0.4)]' 
-                      : 'bg-dlm-800 border border-dlm-600 text-gray-500'
-                }`}
+                    : isCurrent 
+                      ? 'bg-dlm-accent text-black border-2 border-dlm-accent'
+                      : 'bg-white/5 border border-white/20 text-gray-500'
+                  }
+                `}
+                animate={{
+                  boxShadow: isCurrent 
+                    ? '0 0 30px rgba(212, 175, 55, 0.4), 0 0 60px rgba(212, 175, 55, 0.2)' 
+                    : 'none'
+                }}
+                transition={{ duration: 0.3 }}
               >
-                {idx < currentStep ? (
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                ) : (
-                  idx + 1
+                {/* Pulse ring for current step */}
+                {isCurrent && (
+                  <motion.div
+                    className="absolute inset-0 rounded-full border-2 border-dlm-accent"
+                    initial={{ scale: 1, opacity: 0.5 }}
+                    animate={{ scale: 1.5, opacity: 0 }}
+                    transition={{ duration: 1.5, repeat: Infinity, ease: 'easeOut' }}
+                  />
                 )}
-              </div>
-              <span className={`mt-2 text-xs font-medium uppercase tracking-wider whitespace-nowrap ${
-                idx <= currentStep ? 'text-dlm-accent' : 'text-gray-600'
-              }`}>
-                {label}
+                
+                {isCompleted ? <CheckIcon /> : <span>{idx + 1}</span>}
+              </motion.div>
+
+              {/* Label */}
+              <span 
+                className={`
+                  mt-3 text-xs font-medium tracking-wide
+                  ${isCompleted 
+                    ? 'text-green-400'
+                    : isCurrent 
+                      ? 'text-dlm-accent'
+                      : 'text-gray-500'
+                  }
+                `}
+              >
+                {step.label}
+              </span>
+
+              {/* Description - only show for current */}
+              <span 
+                className={`
+                  mt-1 text-[10px] text-gray-500 hidden md:block
+                  transition-opacity duration-300
+                  ${isCurrent ? 'opacity-100' : 'opacity-0'}
+                `}
+              >
+                {step.description}
               </span>
             </div>
-            {idx < steps.length - 1 && (
-              <div className={`w-16 md:w-20 h-0.5 mx-2 md:mx-3 mb-6 transition-colors duration-300 ${
-                idx < currentStep ? 'bg-green-500' : 'bg-dlm-700'
-              }`} />
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
 };
+
+export default StepIndicator;

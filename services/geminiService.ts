@@ -1,12 +1,14 @@
+'use server';
+
 // ========================================
 // DLM DIRECTOR - ENHANCED GEMINI SERVICE
 // Character consistency & cinematic generation
 // ========================================
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { 
-  Scene, 
-  VideoCategory, 
+import {
+  Scene,
+  VideoCategory,
   ProjectConfig,
   CharacterProfile,
   LocationProfile,
@@ -20,10 +22,11 @@ import {
   TransitionType,
   createDefaultScene,
   VISUAL_STYLE_PRESETS,
-  SHOT_FLOW_TEMPLATES
+  SHOT_FLOW_TEMPLATES,
+  VideoModel
 } from "../types";
-import { 
-  buildEnhancedPrompt, 
+import {
+  buildEnhancedPrompt,
   buildVideoMotionPrompt,
   generateConsistencySignature,
   generateCharacterConsistencyPrompt,
@@ -34,17 +37,24 @@ import {
 const API_KEY = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
 
 // Helper to get AI instance
-const getAi = () => new GoogleGenAI({ apiKey: API_KEY });
+const getAi = () => {
+  // Enhanced sanitization: trim whitespace and remove all newlines
+  const trimmedKey = API_KEY.trim().replace(/[\r\n]+/g, '');
+  if (!trimmedKey) {
+    console.error("❌ GEMINI_API_KEY is missing from environment variables!");
+    throw new Error("GEMINI_API_KEY is not set");
+  }
+  return new GoogleGenAI({ apiKey: trimmedKey });
+};
 
 // --- 1. RESEARCH / TRENDING ---
 export const fetchTrendingTopics = async (category: VideoCategory): Promise<any[]> => {
   const ai = getAi();
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-preview-05-20',
+      model: 'gemini-2.0-flash', // Updated to valid stable model
       contents: `Find 3 trending or popular video topics/styles suitable for a ${category} project right now. Focus on what's working on social media and streaming platforms. Provide a JSON response.`,
       config: {
-        tools: [{ googleSearch: {} }],
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.ARRAY,
@@ -58,9 +68,10 @@ export const fetchTrendingTopics = async (category: VideoCategory): Promise<any[
         }
       }
     });
-    
+
     if (response.text) {
-      return JSON.parse(response.text);
+      const cleanText = response.text.replace(/```json/g, "").replace(/```/g, "");
+      return JSON.parse(cleanText);
     }
     return [];
   } catch (error) {
@@ -78,15 +89,15 @@ export const generateScript = async (
   sceneCount: number = 5
 ): Promise<Scene[]> => {
   const ai = getAi();
-  
+
   // Get style preset for context
   const stylePreset = VISUAL_STYLE_PRESETS.find(s => s.id === style || s.name === style) || VISUAL_STYLE_PRESETS[0];
-  
+
   // Build character context if available
   const characterContext = config?.characters && config.characters.length > 0
     ? `\n\nCHARACTERS IN THIS PROJECT (maintain consistency):\n${generateCharacterConsistencyPrompt(config.characters)}`
     : '';
-  
+
   // Build location context if available
   const locationContext = config?.locations && config.locations.length > 0
     ? `\n\nLOCATIONS:\n${config.locations.map(l => `- ${l.name}: ${l.description}, ${l.timeOfDay}, ${l.atmosphere}`).join('\n')}`
@@ -134,7 +145,7 @@ FILM GRAMMAR RULES TO FOLLOW:
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-preview-05-20',
+      model: 'gemini-2.0-flash',
       contents: prompt,
       config: {
         systemInstruction,
@@ -159,8 +170,12 @@ FILM GRAMMAR RULES TO FOLLOW:
       }
     });
 
-    const data = JSON.parse(response.text || '[]');
-    
+    let rawText = response.text || '[]';
+    // Remove markdown code blocks if present (Gemini often wraps JSON in ```json ... ```)
+    rawText = rawText.replace(/```json/g, "").replace(/```/g, "");
+
+    const data = JSON.parse(rawText);
+
     // Enrich with IDs, status, and map string values to enums
     return data.map((item: any, index: number) => {
       const scene = createDefaultScene(index + 1);
@@ -185,17 +200,17 @@ FILM GRAMMAR RULES TO FOLLOW:
 
   } catch (error) {
     console.error("Script generation error:", error);
-    throw new Error("Failed to generate script.");
+    throw new Error(`Failed to generate script: ${error instanceof Error ? error.message : String(error)}`);
   }
 };
 
 // --- 3. CHARACTER EXTRACTION ---
 export const extractCharactersFromPrompt = async (prompt: string): Promise<CharacterProfile[]> => {
   const ai = getAi();
-  
+
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-preview-05-20',
+      model: 'gemini-2.0-flash',
       contents: `Analyze this video concept and extract any characters mentioned. For each character, provide detailed visual descriptions that can be used to maintain consistency across AI-generated images.
 
 Concept: ${prompt}
@@ -228,7 +243,9 @@ Extract characters with extremely specific visual details. If details aren't spe
       }
     });
 
-    const data = JSON.parse(response.text || '[]');
+    let cleanText = response.text || '[]';
+    cleanText = cleanText.replace(/```json/g, "").replace(/```/g, "");
+    const data = JSON.parse(cleanText);
     return data.map((char: any, idx: number) => ({
       ...char,
       id: `char-${idx + 1}-${Date.now()}`
@@ -242,10 +259,10 @@ Extract characters with extremely specific visual details. If details aren't spe
 // --- 4. LOCATION EXTRACTION ---
 export const extractLocationsFromPrompt = async (prompt: string): Promise<LocationProfile[]> => {
   const ai = getAi();
-  
+
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-preview-05-20',
+      model: 'gemini-2.0-flash',
       contents: `Analyze this video concept and extract any locations/settings mentioned. For each location, provide detailed visual descriptions for AI image generation consistency.
 
 Concept: ${prompt}
@@ -274,7 +291,9 @@ Extract locations with specific environmental details.`,
       }
     });
 
-    const data = JSON.parse(response.text || '[]');
+    let cleanText = response.text || '[]';
+    cleanText = cleanText.replace(/```json/g, "").replace(/```/g, "");
+    const data = JSON.parse(cleanText);
     return data.map((loc: any, idx: number) => ({
       ...loc,
       id: `loc-${idx + 1}-${Date.now()}`
@@ -287,38 +306,40 @@ Extract locations with specific environmental details.`,
 
 // --- 5. ENHANCED SCENE IMAGE GENERATION (Nano Banana Pro / Imagen 3) ---
 export const generateSceneImage = async (
-  visualPrompt: string, 
+  visualPrompt: string,
   aspectRatio: string,
   config?: ProjectConfig,
   scene?: Scene
 ): Promise<string> => {
   const ai = getAi();
-  
+
   // Build the enhanced prompt if we have full context
   let finalPrompt: string;
-  
+
   if (config && scene) {
     finalPrompt = buildEnhancedPrompt(scene, config, { includeNegative: false });
   } else {
     // Fallback to basic enhancement
     finalPrompt = enhanceBasicPrompt(visualPrompt, config);
   }
-  
+
   console.log('🎬 Generating image with enhanced prompt:', finalPrompt.substring(0, 200) + '...');
-  
+
   try {
-    const response = await ai.models.generateContent({
-      model: 'imagen-3.0-generate-002',
-      contents: finalPrompt,
+    const response = await ai.models.generateImages({
+      model: 'imagen-4.0-generate-001',
+      prompt: finalPrompt,
       config: {
-        responseModalities: ['IMAGE']
+        numberOfImages: 1,
+        // @ts-ignore
+        aspectRatio: aspectRatio
       }
     });
 
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData && part.inlineData.data) {
-        return `data:image/png;base64,${part.inlineData.data}`;
-      }
+    // @ts-ignore
+    if (response.generatedImages?.[0]?.image?.imageBytes) {
+      // @ts-ignore
+      return `data:image/png;base64,${response.generatedImages[0].image.imageBytes}`;
     }
     throw new Error("No image data found in response");
   } catch (error) {
@@ -327,15 +348,15 @@ export const generateSceneImage = async (
   }
 };
 
-// --- 6. ENHANCED VIDEO GENERATION (Veo 3) ---
+// --- 6. ENHANCED VIDEO GENERATION (Veo 3.1) ---
 export const generateSceneVideo = async (
-  imageBase64: string, 
-  prompt: string, 
+  imageBase64: string,
+  prompt: string,
   aspectRatio: string,
   config?: ProjectConfig,
   scene?: Scene
 ): Promise<string> => {
-  
+
   // Ensure we have a key selected for Veo
   if (typeof window !== 'undefined' && window.aistudio && window.aistudio.hasSelectedApiKey) {
     const hasKey = await window.aistudio.hasSelectedApiKey();
@@ -348,49 +369,124 @@ export const generateSceneVideo = async (
 
   // Build motion-optimized prompt for Veo
   let finalPrompt: string;
-  
+
   if (config && scene) {
     finalPrompt = buildVideoMotionPrompt(scene, config);
   } else {
     finalPrompt = enhanceVideoPrompt(prompt);
   }
-  
-  console.log('🎬 Generating video with prompt:', finalPrompt.substring(0, 200) + '...');
 
-  // Veo expects raw base64 without data URI prefix
-  const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
+  console.log(`🎬 Generating video for Scene ${scene ? scene.id : 'unknown'}`);
+  console.log(`📝 Video Prompt: ${finalPrompt}`);
+  console.log(`📐 Aspect Ratio: ${aspectRatio}`);
+
+  // Helper to get base64 from input (which might be a URL or data URI)
+  let imageBytes: string;
+  let mimeType = 'image/png';
+
+  if (imageBase64.startsWith('http')) {
+    console.log('⬇️ Fetching source image from URL:', imageBase64);
+    const imgRes = await fetch(imageBase64);
+    if (!imgRes.ok) throw new Error(`Failed to fetch source image: ${imgRes.status}`);
+    const arrayBuffer = await imgRes.arrayBuffer();
+    imageBytes = Buffer.from(arrayBuffer).toString('base64');
+    const contentType = imgRes.headers.get('content-type');
+    if (contentType) mimeType = contentType;
+  } else {
+    // It's likely a data URI
+    imageBytes = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, '');
+    const match = imageBase64.match(/^data:(image\/[a-z]+);base64,/);
+    if (match) mimeType = match[1];
+  }
 
   try {
+    // Switch to Veo 3.1 or user selected model
+    const modelId = config?.videoModel || VideoModel.VEO_3_1;
+    console.log(`🤖 Using model: ${modelId}`);
+
     let operation = await ai.models.generateVideos({
-      model: 'veo-3.0-generate-preview',
-      prompt: finalPrompt, 
+      model: modelId,
+      prompt: finalPrompt,
       image: {
-        imageBytes: cleanBase64,
-        mimeType: 'image/png', 
+        imageBytes,
+        mimeType,
       },
       config: {
         numberOfVideos: 1,
-        durationSeconds: scene?.durationEstimate || 5,
+        // @ts-ignore - SDK might use durationSeconds or similar
+        // Note: Providing 'durationSeconds' (even 5) causes a 400 error with Veo 3.1 currently.
+        // We let the model use its default (5s).
+        // durationSeconds: 5,
         aspectRatio: aspectRatio as any
       }
     });
 
     // Polling loop
+    console.log('⏳ Polling for video generation...');
+    let pollCount = 0;
     while (!operation.done) {
+      pollCount++;
+      if (pollCount > 120) throw new Error("Video generation timed out (10 minutes)");
+
       await new Promise(resolve => setTimeout(resolve, 5000));
-      operation = await ai.operations.getVideosOperation({ operation: operation });
+      // Pass the name, not the whole object if possible, or check SDK usage.
+      // If operation is the response object, it has a name.
+      console.log(`Polling attempt ${pollCount}, operation name: ${operation.name}`);
+
+      try {
+        // @ts-ignore - SDK type definition mismatch with runtime requirement
+        operation = await ai.operations.getVideosOperation({ operation: operation });
+      } catch (pollError) {
+        console.error("Polling error details:", pollError);
+        throw pollError;
+      }
     }
 
-    const videoUri = operation.response?.generatedVideos?.[0]?.video?.uri;
-    if (!videoUri) throw new Error("Video generation failed: No URI returned.");
+    // @ts-ignore
+    console.log('✅ Video generation complete. Result:', JSON.stringify(operation.result || operation.response, null, 2));
+
+    // @ts-ignore
+    const videoUri = operation.result?.generatedVideos?.[0]?.video?.uri || operation.response?.generatedVideos?.[0]?.video?.uri;
+
+    if (!videoUri) {
+      console.error("Full operation response:", JSON.stringify(operation, null, 2));
+      throw new Error("Video generation failed: No URI returned.");
+    }
+
+    console.log('⬇️ Fetching video from:', videoUri);
 
     // Fetch the actual binary to play locally
-    const res = await fetch(`${videoUri}&key=${API_KEY}`);
-    const blob = await res.blob();
-    return URL.createObjectURL(blob);
+    // Note: The URI usually needs the API key if it's a direct API reference
+    const fetchUrl = videoUri.includes('key=') ? videoUri : `${videoUri}${videoUri.includes('?') ? '&' : '?'}key=${API_KEY}`;
 
-  } catch (error) {
-    console.error("Video gen error:", error);
+    const res = await fetch(fetchUrl);
+    if (!res.ok) {
+      throw new Error(`Failed to download video: ${res.status} ${res.statusText}`);
+    }
+
+    const arrayBuffer = await res.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString('base64');
+    return `data:video/mp4;base64,${base64}`;
+
+  } catch (error: any) {
+    console.error("❌ Video gen error:", error);
+
+    // Detailed error logging
+    if (error.response) {
+      console.error("Error details:", JSON.stringify(error.response, null, 2));
+
+      // Handle Quota/Rate Limit specifically
+      if (error.response.status === 429 || (error.message && error.message.includes("429"))) {
+        console.error("⚠️ QUOTA EXCEEDED (429). The user needs to check their billing or wait.");
+        throw new Error(`Quota Exceeded: You have reached the rate limit for the ${config?.videoModel || 'Veo'} model. Please wait a moment or check your API plan.`);
+      }
+    }
+
+    // Specific error logging for debugging scene 3 issues
+    if (scene) {
+      console.error(`FAILED SCENE ID: ${scene.id}`);
+      console.error(`FAILED PROMPT: ${finalPrompt}`);
+    }
     throw error;
   }
 };
@@ -403,10 +499,10 @@ export const refineVisualPrompt = async (
 ): Promise<string> => {
   const ai = getAi();
   const consistencySignature = generateConsistencySignature(config);
-  
+
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-preview-05-20',
+      model: 'gemini-2.0-flash',
       contents: `Enhance this visual prompt for AI image generation while maintaining style consistency.
 
 Original prompt: ${basicPrompt}
@@ -438,10 +534,10 @@ Return ONLY the enhanced prompt, no explanations.`,
 // --- HELPER FUNCTIONS ---
 
 function enhanceBasicPrompt(prompt: string, config?: ProjectConfig): string {
-  const stylePreset = config?.style 
+  const stylePreset = config?.style
     ? VISUAL_STYLE_PRESETS.find(s => s.id === config.style) || VISUAL_STYLE_PRESETS[0]
     : VISUAL_STYLE_PRESETS[0];
-  
+
   const enhancements = [
     prompt,
     stylePreset.prompt,
@@ -449,7 +545,7 @@ function enhanceBasicPrompt(prompt: string, config?: ProjectConfig): string {
     config?.filmGrain ? 'subtle film grain texture' : '',
     config?.colorGrading || 'professional color grading'
   ].filter(Boolean);
-  
+
   return enhancements.join('. ');
 }
 

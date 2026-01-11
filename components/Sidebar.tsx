@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   fetchProjects, 
   createProject, 
@@ -11,50 +12,53 @@ import {
 
 // Icons
 const FolderIcon = () => (
-  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} 
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" 
       d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
   </svg>
 );
 
 const PlusIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
   </svg>
 );
 
 const TrashIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} 
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" 
       d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
   </svg>
 );
 
 const FilmIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} 
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" 
       d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
   </svg>
 );
 
 const ChevronIcon = ({ collapsed }: { collapsed: boolean }) => (
-  <svg 
-    className={`w-4 h-4 transition-transform ${collapsed ? '-rotate-90' : ''}`} 
+  <motion.svg 
+    className="w-4 h-4 text-gray-500"
     fill="none" 
     viewBox="0 0 24 24" 
     stroke="currentColor"
+    animate={{ rotate: collapsed ? -90 : 0 }}
+    transition={{ duration: 0.2 }}
   >
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-  </svg>
+  </motion.svg>
 );
 
 interface SidebarProps {
   currentProjectId: string | null;
   onProjectSelect: (id: string) => void;
   onNewProject: () => void;
+  refreshTrigger?: number; // Increment to trigger a refresh
 }
 
-export function Sidebar({ currentProjectId, onProjectSelect, onNewProject }: SidebarProps) {
+export function Sidebar({ currentProjectId, onProjectSelect, onNewProject, refreshTrigger }: SidebarProps) {
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
@@ -62,10 +66,9 @@ export function Sidebar({ currentProjectId, onProjectSelect, onNewProject }: Sid
   const [editingTitle, setEditingTitle] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  // Load projects on mount
   useEffect(() => {
     loadProjects();
-  }, []);
+  }, [refreshTrigger]);
 
   const loadProjects = async () => {
     setLoading(true);
@@ -114,24 +117,37 @@ export function Sidebar({ currentProjectId, onProjectSelect, onNewProject }: Sid
   };
 
   return (
-    <aside 
-      className={`h-screen bg-[#0a0a0a] border-r border-dlm-700 flex flex-col transition-all duration-300 ${
-        collapsed ? 'w-14' : 'w-64'
-      }`}
+    <motion.aside 
+      className="h-screen bg-[#080808] border-r border-white/10 flex flex-col shrink-0"
+      initial={false}
+      animate={{ width: collapsed ? 64 : 260 }}
+      transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
     >
       {/* Header */}
-      <div className="h-16 border-b border-dlm-700 flex items-center justify-between px-3">
-        {!collapsed && (
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-dlm-accent to-yellow-700 rounded-lg flex items-center justify-center text-black font-bold font-serif text-sm">
-              D
-            </div>
-            <span className="font-serif font-bold text-sm">Projects</span>
-          </div>
-        )}
+      <div className="h-16 border-b border-white/10 flex items-center justify-between px-3">
+        <AnimatePresence mode="wait">
+          {!collapsed && (
+            <motion.div 
+              className="flex items-center gap-3"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.2 }}
+            >
+              <div className="w-9 h-9 bg-gradient-to-br from-dlm-accent via-amber-500 to-yellow-600 rounded-xl flex items-center justify-center text-black shadow-lg shadow-dlm-accent/20">
+                <span className="font-bold text-sm">D</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="font-medium text-sm tracking-tight text-white">Projects</span>
+                <span className="text-[10px] text-gray-500">{projects.length} total</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="p-1.5 hover:bg-dlm-700 rounded transition-colors"
+          className="p-2 hover:bg-white/10 rounded-lg transition-colors"
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           <ChevronIcon collapsed={collapsed} />
@@ -139,16 +155,29 @@ export function Sidebar({ currentProjectId, onProjectSelect, onNewProject }: Sid
       </div>
 
       {/* New Project Button */}
-      <div className="p-2">
-        <button
+      <div className="p-3">
+        <motion.button
           onClick={handleCreateProject}
-          className={`w-full flex items-center gap-2 px-3 py-2 bg-dlm-accent text-black font-medium rounded-lg hover:bg-dlm-accentHover transition-colors ${
+          className={`w-full flex items-center gap-2.5 px-3 py-2.5 bg-gradient-to-r from-dlm-accent to-amber-500 text-black font-semibold rounded-xl shadow-lg shadow-dlm-accent/20 hover:shadow-dlm-accent/30 transition-shadow ${
             collapsed ? 'justify-center' : ''
           }`}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
         >
           <PlusIcon />
-          {!collapsed && <span>New Project</span>}
-        </button>
+          <AnimatePresence>
+            {!collapsed && (
+              <motion.span
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: 'auto' }}
+                exit={{ opacity: 0, width: 0 }}
+                className="text-sm whitespace-nowrap overflow-hidden"
+              >
+                New Project
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </motion.button>
       </div>
 
       {/* Projects List */}
@@ -158,24 +187,45 @@ export function Sidebar({ currentProjectId, onProjectSelect, onNewProject }: Sid
             <div className="w-5 h-5 border-2 border-dlm-accent border-t-transparent rounded-full animate-spin" />
           </div>
         ) : projects.length === 0 ? (
-          <div className={`text-center py-8 text-gray-500 ${collapsed ? 'hidden' : ''}`}>
-            <FolderIcon />
-            <p className="text-xs mt-2">No projects yet</p>
-          </div>
+          <AnimatePresence>
+            {!collapsed && (
+              <motion.div 
+                className="text-center py-10"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <div className="text-gray-600 mb-3 flex justify-center">
+                  <FolderIcon />
+                </div>
+                <p className="text-xs text-gray-500">No projects yet</p>
+                <p className="text-[10px] text-gray-600 mt-1">Create your first project</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         ) : (
           <ul className="space-y-1">
             {projects.map((project) => (
               <li key={project.id}>
                 <div
-                  className={`group relative flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-colors ${
+                  className={`group relative flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl cursor-pointer transition-colors ${
                     currentProjectId === project.id
-                      ? 'bg-dlm-700 border border-dlm-accent/30'
-                      : 'hover:bg-dlm-800 border border-transparent'
+                      ? 'bg-white/10'
+                      : 'hover:bg-white/5'
                   }`}
                   onClick={() => onProjectSelect(project.id)}
                 >
+                  {/* Active Indicator */}
+                  {currentProjectId === project.id && (
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-dlm-accent rounded-full" />
+                  )}
+
                   {/* Thumbnail or Icon */}
-                  <div className="w-8 h-8 rounded bg-dlm-800 flex items-center justify-center shrink-0 overflow-hidden">
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 overflow-hidden ${
+                    currentProjectId === project.id 
+                      ? 'bg-dlm-accent/20 text-dlm-accent' 
+                      : 'bg-white/5 text-gray-400'
+                  }`}>
                     {project.thumbnail ? (
                       <img 
                         src={project.thumbnail} 
@@ -187,76 +237,88 @@ export function Sidebar({ currentProjectId, onProjectSelect, onNewProject }: Sid
                     )}
                   </div>
 
-                  {!collapsed && (
-                    <>
-                      {/* Title */}
-                      <div className="flex-1 min-w-0">
-                        {editingId === project.id ? (
-                          <input
-                            type="text"
-                            value={editingTitle}
-                            onChange={(e) => setEditingTitle(e.target.value)}
-                            onBlur={() => handleRename(project.id)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleRename(project.id);
-                              if (e.key === 'Escape') {
-                                setEditingId(null);
-                                setEditingTitle('');
-                              }
-                            }}
-                            className="w-full bg-dlm-900 px-1 py-0.5 text-sm rounded border border-dlm-accent outline-none"
-                            autoFocus
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        ) : (
-                          <>
-                            <p 
-                              className="text-sm truncate"
-                              onDoubleClick={(e) => {
-                                e.stopPropagation();
-                                setEditingId(project.id);
-                                setEditingTitle(project.title);
+                  <AnimatePresence>
+                    {!collapsed && (
+                      <motion.div
+                        className="flex-1 min-w-0 flex items-center justify-between"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                      >
+                        {/* Title */}
+                        <div className="flex-1 min-w-0">
+                          {editingId === project.id ? (
+                            <input
+                              type="text"
+                              value={editingTitle}
+                              onChange={(e) => setEditingTitle(e.target.value)}
+                              onBlur={() => handleRename(project.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleRename(project.id);
+                                if (e.key === 'Escape') {
+                                  setEditingId(null);
+                                  setEditingTitle('');
+                                }
                               }}
-                            >
-                              {project.title}
-                            </p>
-                            <p className="text-[10px] text-gray-500">
-                              {formatDate(project.updatedAt)}
-                            </p>
-                          </>
-                        )}
-                      </div>
-
-                      {/* Delete Button */}
-                      {deleteConfirmId === project.id ? (
-                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => handleDelete(project.id)}
-                            className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-500"
-                          >
-                            Delete
-                          </button>
-                          <button
-                            onClick={() => setDeleteConfirmId(null)}
-                            className="px-2 py-1 text-xs bg-dlm-600 rounded hover:bg-dlm-500"
-                          >
-                            Cancel
-                          </button>
+                              className="w-full bg-white/10 px-2 py-1 text-sm text-white rounded-lg border border-dlm-accent/50 outline-none focus:border-dlm-accent"
+                              autoFocus
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          ) : (
+                            <>
+                              <p 
+                                className={`text-sm truncate font-medium ${
+                                  currentProjectId === project.id ? 'text-white' : 'text-gray-300'
+                                }`}
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingId(project.id);
+                                  setEditingTitle(project.title);
+                                }}
+                              >
+                                {project.title}
+                              </p>
+                              <p className="text-[10px] text-gray-500 mt-0.5">
+                                {formatDate(project.updatedAt)}
+                              </p>
+                            </>
+                          )}
                         </div>
-                      ) : (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteConfirmId(project.id);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-900/50 rounded transition-all text-gray-400 hover:text-red-400"
-                          title="Delete project"
-                        >
-                          <TrashIcon />
-                        </button>
-                      )}
-                    </>
-                  )}
+
+                        {/* Delete Button */}
+                        {deleteConfirmId === project.id ? (
+                          <div 
+                            className="flex items-center gap-1 ml-2" 
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              onClick={() => handleDelete(project.id)}
+                              className="px-2 py-1 text-[10px] font-medium bg-red-500/20 text-red-400 rounded-md hover:bg-red-500/30 transition-colors"
+                            >
+                              Delete
+                            </button>
+                            <button
+                              onClick={() => setDeleteConfirmId(null)}
+                              className="px-2 py-1 text-[10px] font-medium bg-white/5 text-gray-400 rounded-md hover:bg-white/10 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteConfirmId(project.id);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-500/20 rounded-lg transition-all text-gray-500 hover:text-red-400"
+                            title="Delete project"
+                          >
+                            <TrashIcon />
+                          </button>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </li>
             ))}
@@ -265,14 +327,35 @@ export function Sidebar({ currentProjectId, onProjectSelect, onNewProject }: Sid
       </div>
 
       {/* Footer */}
-      {!collapsed && (
-        <div className="p-3 border-t border-dlm-700">
-          <p className="text-[10px] text-gray-600 text-center">
-            DLM Director • Elite Edition
-          </p>
-        </div>
-      )}
-    </aside>
+      <AnimatePresence>
+        {!collapsed && (
+          <motion.div 
+            className="p-4 border-t border-white/10"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-dlm-accent/20 to-amber-500/20 flex items-center justify-center text-dlm-accent">
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none">
+                    <path 
+                      d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" 
+                      stroke="currentColor" 
+                      strokeWidth="2" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
+                <span className="text-[10px] text-gray-500 font-medium tracking-wide">DLM Director</span>
+              </div>
+              <span className="text-[9px] text-gray-600 font-mono">v2.0</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.aside>
   );
 }
 

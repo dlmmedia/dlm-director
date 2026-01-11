@@ -19,6 +19,22 @@ interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
+// Helper to remove stale project entries from index
+async function cleanupStaleProject(id: string): Promise<void> {
+  try {
+    const index = await getProjectsIndex();
+    const projectExists = index.projects.some(p => p.id === id);
+    if (projectExists) {
+      console.log(`Cleaning up stale project from index: ${id}`);
+      index.projects = index.projects.filter(p => p.id !== id);
+      index.lastUpdated = new Date().toISOString();
+      await updateProjectsIndex(index);
+    }
+  } catch (error) {
+    console.error('Error cleaning up stale project:', error);
+  }
+}
+
 export async function GET(
   request: NextRequest,
   { params }: RouteParams
@@ -28,6 +44,9 @@ export async function GET(
     const project = await getProject(id);
 
     if (!project) {
+      // Clean up stale entry from index if it exists
+      await cleanupStaleProject(id);
+      
       return NextResponse.json(
         { error: 'Project not found' },
         { status: 404 }
@@ -75,7 +94,11 @@ export async function PUT(
   } catch (error) {
     console.error('Error updating project:', error);
     return NextResponse.json(
-      { error: 'Failed to update project' },
+      { 
+        error: 'Failed to update project',
+        details: error instanceof Error ? error.message : String(error),
+        stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined
+      },
       { status: 500 }
     );
   }
