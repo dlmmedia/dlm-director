@@ -46,8 +46,21 @@ export default function ScriptReviewStep({
             </div>
           </div>
           
-          {/* Tabs */}
-          <div className="flex gap-2 bg-white/5 p-1 rounded-xl">
+          {/* Status Overview */}
+          <div className="flex gap-4">
+             <div className="flex flex-col items-end text-xs text-gray-400">
+                <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                    <span>Ready</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                    <span>Pending</span>
+                </div>
+             </div>
+             
+             {/* Tabs */}
+             <div className="flex gap-2 bg-white/5 p-1 rounded-xl">
             {(['scenes', 'characters'] as const).map((tab) => (
               <button
                 key={tab}
@@ -63,6 +76,7 @@ export default function ScriptReviewStep({
             ))}
           </div>
         </div>
+      </div>
       </div>
 
       {activeTab === 'scenes' ? (
@@ -142,7 +156,11 @@ export default function ScriptReviewStep({
           onClick={onNext}
           className="btn-primary"
         >
-          <span>Approve & Generate Storyboard</span>
+          {config.scenes.some(s => s.status === 'image_ready' || s.imageUrl) ? (
+            <span>Look at Generated Project</span>
+          ) : (
+            <span>Approve & Generate Storyboard</span>
+          )}
           <ArrowRightIcon />
         </button>
       </div>

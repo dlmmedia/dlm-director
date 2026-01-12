@@ -7,13 +7,15 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CharacterProfile } from '../types';
+import { CharacterProfile, ProjectConfig, ReferenceImage } from '../types';
+import { ReferenceImagePicker } from './ReferenceImagePicker';
 
 interface Props {
   characters: CharacterProfile[];
   onAddCharacter: (character: CharacterProfile) => void;
   onUpdateCharacter: (id: string, updates: Partial<CharacterProfile>) => void;
   onRemoveCharacter: (id: string) => void;
+  config?: ProjectConfig; // Optional config for picking from project images
 }
 
 const SKIN_TONES = [
@@ -71,7 +73,8 @@ export const CharacterManager: React.FC<Props> = ({
   characters,
   onAddCharacter,
   onUpdateCharacter,
-  onRemoveCharacter
+  onRemoveCharacter,
+  config
 }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -285,6 +288,23 @@ export const CharacterManager: React.FC<Props> = ({
         />
       </div>
       
+      <div className="col-span-2 md:col-span-3">
+        <ReferenceImagePicker
+          config={config || { scenes: [] } as any}
+          selectedRefs={char.referenceImageUrl ? [{
+            id: 'char-ref',
+            type: 'SUBJECT',
+            source: 'UPLOAD', // Assume upload/external for now
+            url: char.referenceImageUrl,
+            mimeType: 'image/png' // Placeholder
+          }] : []}
+          onUpdateRefs={(refs) => onChange({ referenceImageUrl: refs[0]?.url })}
+          maxRefs={1}
+          label="Reference Image (for consistency)"
+          allowProjectSelection={!!config}
+        />
+      </div>
+
       <div className="col-span-2 md:col-span-3">
         <label className={labelClass}>Additional Physical Description</label>
         <textarea

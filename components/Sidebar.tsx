@@ -38,6 +38,12 @@ const FilmIcon = () => (
   </svg>
 );
 
+const PencilIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+  </svg>
+);
+
 const ChevronIcon = ({ collapsed }: { collapsed: boolean }) => (
   <motion.svg 
     className="w-4 h-4 text-gray-500"
@@ -55,10 +61,11 @@ interface SidebarProps {
   currentProjectId: string | null;
   onProjectSelect: (id: string) => void;
   onNewProject: () => void;
+  onRename?: (id: string, newTitle: string) => void;
   refreshTrigger?: number; // Increment to trigger a refresh
 }
 
-export function Sidebar({ currentProjectId, onProjectSelect, onNewProject, refreshTrigger }: SidebarProps) {
+export function Sidebar({ currentProjectId, onProjectSelect, onNewProject, onRename, refreshTrigger }: SidebarProps) {
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
@@ -84,6 +91,14 @@ export function Sidebar({ currentProjectId, onProjectSelect, onNewProject, refre
       onProjectSelect(project.id);
       setEditingId(project.id);
       setEditingTitle('New Project');
+      // Force focus on next render
+      setTimeout(() => {
+        const input = document.getElementById(`rename-input-${project.id}`) as HTMLInputElement;
+        if (input) {
+          input.focus();
+          input.select();
+        }
+      }, 100);
     }
   };
 
@@ -94,6 +109,9 @@ export function Sidebar({ currentProjectId, onProjectSelect, onNewProject, refre
         setProjects(prev => 
           prev.map(p => p.id === id ? { ...p, title: editingTitle.trim() } : p)
         );
+        if (onRename) {
+          onRename(id, editingTitle.trim());
+        }
       }
     }
     setEditingId(null);
@@ -246,9 +264,10 @@ export function Sidebar({ currentProjectId, onProjectSelect, onNewProject, refre
                         exit={{ opacity: 0 }}
                       >
                         {/* Title */}
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 mr-2">
                           {editingId === project.id ? (
                             <input
+                              id={`rename-input-${project.id}`}
                               type="text"
                               value={editingTitle}
                               onChange={(e) => setEditingTitle(e.target.value)}
@@ -261,27 +280,47 @@ export function Sidebar({ currentProjectId, onProjectSelect, onNewProject, refre
                                 }
                               }}
                               className="w-full bg-white/10 px-2 py-1 text-sm text-white rounded-lg border border-dlm-accent/50 outline-none focus:border-dlm-accent"
-                              autoFocus
                               onClick={(e) => e.stopPropagation()}
                             />
                           ) : (
-                            <>
-                              <p 
-                                className={`text-sm truncate font-medium ${
-                                  currentProjectId === project.id ? 'text-white' : 'text-gray-300'
-                                }`}
-                                onDoubleClick={(e) => {
+                            <div className="flex items-center justify-between group/title">
+                              <div className="overflow-hidden">
+                                <p 
+                                  className={`text-sm truncate font-medium ${
+                                    currentProjectId === project.id ? 'text-white' : 'text-gray-300'
+                                  }`}
+                                  onDoubleClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingId(project.id);
+                                    setEditingTitle(project.title);
+                                  }}
+                                >
+                                  {project.title}
+                                </p>
+                                <p className="text-[10px] text-gray-500 mt-0.5">
+                                  {formatDate(project.updatedAt)}
+                                </p>
+                              </div>
+                              
+                              <button
+                                onClick={(e) => {
                                   e.stopPropagation();
                                   setEditingId(project.id);
                                   setEditingTitle(project.title);
+                                  setTimeout(() => {
+                                    const input = document.getElementById(`rename-input-${project.id}`) as HTMLInputElement;
+                                    if (input) {
+                                      input.focus();
+                                      input.select();
+                                    }
+                                  }, 50);
                                 }}
+                                className="opacity-0 group-hover/title:opacity-100 p-1 hover:bg-white/10 rounded transition-all text-gray-500 hover:text-white"
+                                title="Rename"
                               >
-                                {project.title}
-                              </p>
-                              <p className="text-[10px] text-gray-500 mt-0.5">
-                                {formatDate(project.updatedAt)}
-                              </p>
-                            </>
+                                <PencilIcon />
+                              </button>
+                            </div>
                           )}
                         </div>
 

@@ -235,36 +235,52 @@ export function buildVideoMotionPrompt(
   config: ProjectConfig
 ): string {
   const movement = MOVEMENT_PROMPTS[scene.cameraMovement];
+  const angle = ANGLE_PROMPTS[scene.cameraAngle];
   const basePrompt = scene.enhancedPrompt || scene.visualPrompt;
   
   // Veo 3 works best with clear motion descriptions
   const motionDescriptors = [];
   
-  // Camera movement
+  // Explicitly state camera behavior first for better adherence
   if (scene.cameraMovement !== CameraMovement.STATIC_TRIPOD) {
-    motionDescriptors.push(`Camera: ${movement}`);
+    motionDescriptors.push(`Camera movement: ${movement}`);
   } else {
     motionDescriptors.push('Camera: locked off, stable composition');
   }
+
+  // Add Camera Angle
+  motionDescriptors.push(`Angle: ${angle}`);
   
   // Subject motion inference
   const hasAction = /\b(walking|running|moving|dancing|jumping|flying|falling|rising|turning|spinning)\b/i.test(basePrompt);
   if (!hasAction) {
-    motionDescriptors.push('Subtle natural movement, breathing, small gestures');
+    motionDescriptors.push('Action: Subtle natural movement, breathing, small gestures');
   }
   
   // Environment motion
   const hasEnvironment = /\b(wind|rain|snow|fire|water|smoke|fog|clouds)\b/i.test(basePrompt);
   if (hasEnvironment) {
-    motionDescriptors.push('Environmental elements moving naturally');
+    motionDescriptors.push('Atmosphere: Environmental elements moving naturally');
   }
   
   // Lighting motion
   if (scene.lightSource === LightSource.CANDLE_FIRE || scene.lightSource === LightSource.NEON) {
-    motionDescriptors.push('Dynamic lighting with subtle flicker');
+    motionDescriptors.push('Lighting: Dynamic lighting with subtle flicker');
+  }
+
+  // Add audio cue if enabled
+  if (config.audioEnabled) {
+    motionDescriptors.push('Audio: Ambient sound and foley matching the scene');
   }
   
-  return `${basePrompt}. ${motionDescriptors.join('. ')}. Cinematic quality, smooth motion, professional video.`;
+  // Construct the prompt with higher weight on visual style and camera
+  return `Cinematic Video. ${basePrompt}. 
+  
+  VISUAL STYLE: ${config.style}.
+  CAMERA: ${movement}, ${angle}.
+  MOTION: ${motionDescriptors.join('. ')}.
+  
+  High quality, smooth motion, professional color grading.`;
 }
 
 /**

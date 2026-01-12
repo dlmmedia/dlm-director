@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 
 interface Props {
   currentStep: number;
+  onStepClick?: (step: number) => void;
 }
 
 const steps = [
@@ -20,7 +21,7 @@ const CheckIcon = () => (
   </svg>
 );
 
-export const StepIndicator: React.FC<Props> = ({ currentStep }) => {
+export const StepIndicator: React.FC<Props> = ({ currentStep, onStepClick }) => {
   return (
     <div className="w-full max-w-6xl mx-auto px-6">
       <div className="flex items-center justify-between relative">
@@ -39,9 +40,18 @@ export const StepIndicator: React.FC<Props> = ({ currentStep }) => {
         {steps.map((step, idx) => {
           const isCompleted = idx < currentStep;
           const isCurrent = idx === currentStep;
+          const isClickable = isCompleted || isCurrent || (idx === currentStep + 1 && onStepClick); // Allow moving to next if available logic permits (handled by parent)
 
           return (
-            <div key={step.label} className="flex flex-col items-center relative z-10">
+            <div 
+              key={step.label} 
+              className={`flex flex-col items-center relative z-10 ${onStepClick ? 'cursor-pointer' : ''}`}
+              onClick={() => {
+                if (onStepClick) {
+                  onStepClick(idx);
+                }
+              }}
+            >
               {/* Step Circle */}
               <motion.div
                 className={`

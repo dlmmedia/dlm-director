@@ -20,7 +20,7 @@ apiKey = apiKey.replace(/\\n/g, '');
 const API_KEY = apiKey || process.env.GEMINI_API_KEY || '';
 
 async function testImagen() {
-    console.log("Testing Imagen 4.0 with key length: " + API_KEY.length);
+    console.log("Testing Nano Banana Pro with key length: " + API_KEY.length);
     if (!API_KEY) {
         console.error("No API Key");
         return;
@@ -29,9 +29,9 @@ async function testImagen() {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
 
     try {
-        console.log("Generating image with imagen-4.0-generate-001...");
+        console.log("Generating image with nano-banana-pro-preview...");
         const response = await ai.models.generateContent({
-            model: 'imagen-4.0-generate-001',
+            model: 'nano-banana-pro-preview',
             contents: 'A futuristic city with flying cars, cinematic lighting',
             config: {
                 responseModalities: ['IMAGE']
@@ -39,6 +39,8 @@ async function testImagen() {
         });
 
         console.log("Response received!");
+        console.log(JSON.stringify(response, null, 2));
+
         // Simplified log to confirm success
         if (response) {
             console.log("SUCCESS: Image generated.");

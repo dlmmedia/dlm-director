@@ -13,6 +13,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+        <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+      </head>
       <body className="bg-[#0a0a0a] text-white antialiased">
         {children}
       </body>

@@ -13,6 +13,7 @@ import {
   generateScript, 
   generateSceneImage, 
   generateSceneVideo, 
+  extendVideo,
   fetchTrendingTopics,
   extractCharactersFromPrompt,
   extractLocationsFromPrompt,
@@ -50,17 +51,31 @@ export default function Home() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [sidebarRefreshTrigger, setSidebarRefreshTrigger] = useState(0);
   
-  // Ref to always have access to the latest config for saves
+  // Ref to always have access to the latest config for callbacks/loops
   const configRef = useRef<ProjectConfig>(config);
   useEffect(() => {
     configRef.current = config;
   }, [config]);
 
+  // Ref to track last saved state to prevent loop
+  const lastSavedConfigRef = useRef<string>('');
+
   // Auto-save effect
   useEffect(() => {
     if (currentProjectId && config) {
+      const currentConfigStr = JSON.stringify(config);
+      
+      // Skip if config hasn't changed from what we last loaded/saved
+      if (currentConfigStr === lastSavedConfigRef.current) {
+        return;
+      }
+
       setSaveStatus('unsaved');
       debouncedSave(currentProjectId, config);
+      
+      // Update the reference to current
+      lastSavedConfigRef.current = currentConfigStr;
+      
       const timer = setTimeout(() => setSaveStatus('saved'), 2500);
       return () => clearTimeout(timer);
     }
@@ -86,8 +101,11 @@ export default function Home() {
       const project = await fetchProject(id);
       if (project) {
         setCurrentProjectId(id);
-        setConfig(project.config || createDefaultConfig());
-        setStep(project.config?.scenes?.length > 0 ? 2 : 0);
+        const projectConfig = project.config || createDefaultConfig();
+        setConfig(projectConfig);
+        // Initialize lastSavedConfigRef with the loaded config to prevent immediate auto-save
+        lastSavedConfigRef.current = JSON.stringify(projectConfig);
+        setStep(projectConfig?.scenes?.length > 0 ? 2 : 0);
         setSaveStatus('saved');
       } else {
         // Project doesn't exist - it was cleaned up from the index by the API
@@ -108,7 +126,9 @@ export default function Home() {
       const project = await createProjectAPI('New Project');
       if (project) {
         setCurrentProjectId(project.id);
-        setConfig(createDefaultConfig());
+        const newConfig = createDefaultConfig();
+        setConfig(newConfig);
+        lastSavedConfigRef.current = JSON.stringify(newConfig);
         setStep(0);
       } else {
         setErrorMessage("Failed to create project.");
@@ -158,7 +178,7 @@ export default function Home() {
   };
 
   const handleGenerateScript = async () => {
-    const currentConfig = configRef.current;
+    const currentConfig = config;
     if (!currentConfig.userPrompt) return;
     setLoadingScript(true);
     setErrorMessage(null);
@@ -176,6 +196,7 @@ export default function Home() {
         if (currentProjectId) {
           saveProject(currentProjectId, newConfig).then(() => {
             console.log('✅ Project saved with generated script');
+            lastSavedConfigRef.current = JSON.stringify(newConfig);
           });
         }
         return newConfig;
@@ -190,8 +211,8 @@ export default function Home() {
   };
 
   const handleGenerateImage = async (sceneId: number) => {
-    // Get the current scene from the ref (always latest)
-    const currentConfig = configRef.current;
+    // Get the current scene
+    const currentConfig = configRef.current; // Use ref to get most recent state during async ops if needed, but for start is ok
     const scene = currentConfig.scenes.find(s => s.id === sceneId);
     if (!scene) return;
 
@@ -232,6 +253,7 @@ export default function Home() {
         if (currentProjectId) {
           saveProject(currentProjectId, newConfig).then(() => {
             console.log(`✅ Project saved with image for scene ${sceneId}`);
+            lastSavedConfigRef.current = JSON.stringify(newConfig);
           });
         }
         
@@ -247,7 +269,7 @@ export default function Home() {
   };
 
   const handleGenerateVideo = async (sceneId: number) => {
-    // Get the current scene from the ref (always latest)
+    // Get the current scene
     const currentConfig = configRef.current;
     const scene = currentConfig.scenes.find(s => s.id === sceneId);
     if (!scene || !scene.imageUrl) return;
@@ -296,6 +318,7 @@ export default function Home() {
         if (currentProjectId) {
           saveProject(currentProjectId, newConfig).then(() => {
             console.log(`✅ Project saved with video for scene ${sceneId}`);
+            lastSavedConfigRef.current = JSON.stringify(newConfig);
           });
         }
         
@@ -311,6 +334,68 @@ export default function Home() {
         scenes: prev.scenes.map(s => s.id === sceneId ? { ...s, status: 'error', errorMsg } : s)
       }));
       setErrorMessage(`Video generation failed for scene ${sceneId}: ${errorMsg}`);
+    }
+  };
+
+  const handleExtendVideo = async (sceneId: number) => {
+    // Get the current scene
+    const currentConfig = configRef.current;
+    const scene = currentConfig.scenes.find(s => s.id === sceneId);
+    if (!scene || !scene.videoUrl) return;
+
+    setConfig(prev => ({
+      ...prev,
+      scenes: prev.scenes.map(s => s.id === sceneId ? { ...s, status: 'generating_video', errorMsg: undefined } : s)
+    }));
+
+    try {
+      // Extend the video
+      const extendedVideoData = await extendVideo(
+        scene.videoUrl,
+        scene.visualPrompt,
+        currentConfig
+      );
+      
+      // Upload extended video
+      let videoUrl = extendedVideoData;
+      if (currentProjectId && extendedVideoData.startsWith('data:video')) {
+        const base64Data = extendedVideoData.replace(/^data:video\/mp4;base64,/, '');
+        const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+        const videoBlob = new Blob([binaryData], { type: 'video/mp4' });
+        
+        // We use the same scene ID but maybe we should append a suffix or update the scene
+        const blobUrl = await uploadSceneVideo(currentProjectId, sceneId, videoBlob);
+        if (blobUrl) {
+          videoUrl = blobUrl;
+        }
+      }
+      
+      // Update scene with extended video URL and mark as extended
+      setConfig(prev => {
+        const newConfig = {
+          ...prev,
+          scenes: prev.scenes.map(s => s.id === sceneId ? { 
+            ...s, 
+            status: 'video_ready' as const, 
+            videoUrl: videoUrl,
+            extendedFromVideoUrl: scene.videoUrl, // Keep track
+            durationEstimate: s.durationEstimate + 5 // Approximate extension
+          } : s)
+        };
+        
+        if (currentProjectId) {
+          saveProject(currentProjectId, newConfig);
+          lastSavedConfigRef.current = JSON.stringify(newConfig);
+        }
+        return newConfig;
+      });
+
+    } catch (e: any) {
+        setConfig(prev => ({
+            ...prev,
+            scenes: prev.scenes.map(s => s.id === sceneId ? { ...s, status: 'video_ready' as const, errorMsg: 'Extension failed: ' + e.message } : s)
+        }));
+        setErrorMessage(`Video extension failed: ${e.message}`);
     }
   };
 
@@ -379,6 +464,33 @@ export default function Home() {
       generateAllImages();
   };
 
+  const handleRenameProject = useCallback((id: string, newTitle: string) => {
+    // If the renamed project is the current one, update local config title
+    if (id === currentProjectId) {
+      setConfig(prev => ({ ...prev, title: newTitle }));
+    }
+  }, [currentProjectId]);
+
+  const handleStepClick = (newStep: number) => {
+    // Only allow navigating to steps that have data ready
+    // Step 0: Always allowed
+    // Step 1: Always allowed
+    // Step 2: Only if scenes exist
+    // Step 3: Only if step 2 was reached (which means scenes exist)
+    
+    if (newStep === 0 || newStep === 1) {
+      setStep(newStep);
+      return;
+    }
+    
+    if (newStep >= 2 && (!config.scenes || config.scenes.length === 0)) {
+       setErrorMessage("You need to generate a script before moving to this step.");
+       return;
+    }
+    
+    setStep(newStep);
+  };
+
   return (
     <div className="flex h-screen bg-[#0a0a0a]">
       {/* Sidebar */}
@@ -386,6 +498,7 @@ export default function Home() {
         currentProjectId={currentProjectId}
         onProjectSelect={handleProjectSelect}
         onNewProject={handleNewProject}
+        onRename={handleRenameProject}
         refreshTrigger={sidebarRefreshTrigger}
       />
 
@@ -451,7 +564,7 @@ export default function Home() {
 
         <main className="flex-1 overflow-y-auto" id="main-scroll-container">
           <div className="py-6">
-            <StepIndicator currentStep={step} />
+            <StepIndicator currentStep={step} onStepClick={handleStepClick} />
           </div>
           
           {step === 0 && (
@@ -498,6 +611,7 @@ export default function Home() {
               onShowPlayer={() => setShowPlayer(true)}
               onGenerateImage={handleGenerateImage}
               onGenerateVideo={handleGenerateVideo}
+              onExtendVideo={handleExtendVideo}
             />
           )}
         </main>

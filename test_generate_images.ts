@@ -20,12 +20,12 @@ apiKey = apiKey.replace(/\\n/g, '');
 const API_KEY = apiKey || process.env.GEMINI_API_KEY || '';
 
 async function testGenerateImages() {
-    console.log("Testing generateImages with Imagen 4.0...");
+    console.log("Testing generateImages with Nano Banana Pro...");
     const ai = new GoogleGenAI({ apiKey: API_KEY });
 
     try {
         const response = await ai.models.generateImages({
-            model: 'imagen-4.0-generate-001',
+            model: 'nano-banana-pro-preview',
             prompt: 'A futuristic city with flying cars, cinematic lighting',
             config: {
                 numberOfImages: 1

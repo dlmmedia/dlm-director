@@ -1,15 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ProjectConfig, VideoModel } from '@/types';
+import { ProjectConfig, VideoModel, Scene } from '@/types';
 import { 
   LoadingSpinner, 
   VideoIcon, 
   PlayIcon,
-  SaveIcon
+  SaveIcon,
+  SettingsIcon,
+  PlusIcon
 } from '@/components/Icons';
 import { ModelSelector } from '@/components/ModelSelector';
+import { VideoGenerationSettings } from '@/components/VideoGenerationSettings';
 import { 
   downloadFile, 
   downloadImagesZip, 
+  downloadVideosZip,
   stitchVideos 
 } from '@/lib/download';
 
@@ -21,6 +25,7 @@ interface ProductionStepProps {
   onShowPlayer: () => void;
   onGenerateImage: (sceneId: number) => void;
   onGenerateVideo: (sceneId: number) => void;
+  onExtendVideo?: (sceneId: number) => void;
 }
 
 export default function ProductionStep({
@@ -30,16 +35,25 @@ export default function ProductionStep({
   onGenerateAllVideos,
   onShowPlayer,
   onGenerateImage,
-  onGenerateVideo
+  onGenerateVideo,
+  onExtendVideo
 }: ProductionStepProps) {
   
   const [stitching, setStitching] = useState(false);
   const [stitchProgress, setStitchProgress] = useState(0);
   const [stitchStatus, setStitchStatus] = useState('');
   const [playingSceneId, setPlayingSceneId] = useState<number | null>(null);
+  const [expandedSceneId, setExpandedSceneId] = useState<number | null>(null);
   
   // Safe play handling
   const videoRefs = useRef<{[key: number]: HTMLVideoElement | null}>({});
+
+  // Helper to update a specific scene
+  const handleUpdateScene = (sceneId: number, updates: Partial<Scene>) => {
+    if (!onUpdateConfig) return;
+    const newScenes = config.scenes.map(s => s.id === sceneId ? { ...s, ...updates } : s);
+    onUpdateConfig({ scenes: newScenes });
+  };
 
   // Calculate stats
   const totalDuration = config.scenes.reduce((acc, s) => acc + s.durationEstimate, 0);
@@ -51,6 +65,14 @@ export default function ProductionStep({
       await downloadImagesZip(config.scenes, config.title || 'project');
     } catch (e) {
       console.error("Failed to download images", e);
+    }
+  };
+
+  const handleDownloadAllVideos = async () => {
+    try {
+      await downloadVideosZip(config.scenes, config.title || 'project');
+    } catch (e) {
+      console.error("Failed to download videos", e);
     }
   };
 
@@ -67,13 +89,16 @@ export default function ProductionStep({
       if (blob) {
         const url = URL.createObjectURL(blob);
         await downloadFile(url, `${config.title || 'film'}_stitched.mp4`);
+        setStitchStatus('Complete!');
       }
     } catch (e) {
       console.error("Failed to stitch videos", e);
-      setStitchStatus("Stitching failed");
+      setStitchStatus("Failed");
     } finally {
-      setStitching(false);
-      setTimeout(() => setStitchStatus(''), 3000);
+      setTimeout(() => {
+        setStitching(false);
+        setStitchStatus('');
+      }, 3000);
     }
   };
   
@@ -101,42 +126,63 @@ export default function ProductionStep({
           </div>
           <div className="flex items-center gap-3">
             {onUpdateConfig && (
-              <ModelSelector 
-                currentModel={config.videoModel} 
-                onSelect={(model) => onUpdateConfig({ videoModel: model })}
-                disabled={generatingAllVideos}
-              />
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 cursor-pointer bg-white/5 px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/30 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={config.audioEnabled || false}
+                    onChange={(e) => onUpdateConfig({ audioEnabled: e.target.checked })}
+                    className="w-4 h-4 rounded border-gray-500 text-dlm-accent focus:ring-dlm-accent bg-transparent"
+                  />
+                  <span className="text-xs font-medium text-gray-300">Generate Audio</span>
+                </label>
+                <ModelSelector 
+                  currentModel={config.videoModel} 
+                  onSelect={(model) => onUpdateConfig({ videoModel: model })}
+                  disabled={generatingAllVideos}
+                />
+              </div>
             )}
 
             <div className="h-8 w-px bg-white/10 mx-2" />
 
-            <button 
-              onClick={handleDownloadAllImages}
-              disabled={imagesReady === 0}
-              className="btn-ghost"
-              title="Download all images as ZIP"
-            >
-              <SaveIcon />
-            </button>
+            <div className="flex flex-col gap-1">
+              <button 
+                onClick={handleDownloadAllImages}
+                disabled={imagesReady === 0}
+                className="btn-ghost py-1 text-xs"
+                title="Download all images as ZIP"
+              >
+                <SaveIcon />
+                <span className="hidden xl:inline ml-2">Images</span>
+              </button>
+              <button 
+                onClick={handleDownloadAllVideos}
+                disabled={videosReady === 0}
+                className="btn-ghost py-1 text-xs"
+                title="Download all videos as ZIP"
+              >
+                <VideoIcon />
+                <span className="hidden xl:inline ml-2">Videos</span>
+              </button>
+            </div>
             
             <button 
               onClick={handleStitchAndDownload}
               disabled={videosReady < 2 || stitching}
-              className="btn-ghost relative"
+              className={`relative btn-ghost ${stitching ? 'opacity-100 cursor-not-allowed' : ''}`}
               title="Download stitched video"
             >
               {stitching ? (
                 <div className="flex items-center gap-2">
                   <LoadingSpinner size={14} color="currentColor" />
-                  <span className="text-xs w-8 text-center">{Math.round(stitchProgress)}%</span>
+                  <span className="text-xs w-24 text-left truncate">{stitchStatus || `${Math.round(stitchProgress)}%`}</span>
                 </div>
               ) : (
-                <VideoIcon />
-              )}
-              {stitchStatus && stitching && (
-                <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] whitespace-nowrap text-gray-400">
-                  {stitchStatus}
-                </span>
+                <div className="flex items-center gap-2">
+                   <VideoIcon />
+                   <span>Download Film</span>
+                </div>
               )}
             </button>
 
@@ -259,15 +305,6 @@ export default function ProductionStep({
                   controls 
                   playsInline
                   onEnded={() => setPlayingSceneId(null)}
-                  onPlay={() => {
-                     // Catch abort errors if play is interrupted
-                     const video = videoRefs.current[scene.id];
-                     if (video && video.paused && !video.ended) {
-                         video.play().catch(e => {
-                             if (e.name !== 'AbortError') console.error("Playback error:", e);
-                         });
-                     }
-                  }}
                 />
               ) : scene.imageUrl ? (
                 <>
@@ -301,9 +338,30 @@ export default function ProductionStep({
             {/* Scene Info */}
             <div className="p-5 space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-dlm-accent font-bold text-sm">Scene {scene.id}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-dlm-accent font-bold text-sm">Scene {scene.id}</span>
+                  <button
+                    onClick={() => setExpandedSceneId(expandedSceneId === scene.id ? null : scene.id)}
+                    className={`p-1.5 rounded-lg transition-colors ${expandedSceneId === scene.id ? 'bg-white/20 text-white' : 'hover:bg-white/10 text-gray-400'}`}
+                    title="Video Generation Settings (References & Anchoring)"
+                  >
+                    <SettingsIcon />
+                  </button>
+                </div>
                 <span className="text-xs text-gray-500 font-mono">{scene.durationEstimate}s</span>
               </div>
+              
+              {/* Detailed Settings Panel */}
+              {expandedSceneId === scene.id && onUpdateConfig && (
+                <div className="mb-4 bg-black/40 rounded-xl p-4 border border-white/10 animate-in fade-in slide-in-from-top-2">
+                   <VideoGenerationSettings 
+                      config={config} 
+                      scene={scene}
+                      onUpdateScene={handleUpdateScene}
+                      onUpdateConfig={onUpdateConfig}
+                   />
+                </div>
+              )}
               
               <p className="text-gray-400 text-xs line-clamp-2 leading-relaxed">{scene.narration}</p>
               
@@ -329,17 +387,29 @@ export default function ProductionStep({
                 >
                   {scene.imageUrl ? 'Regenerate' : 'Generate'} Image
                 </button>
-                <button 
-                  onClick={() => onGenerateVideo(scene.id)}
-                  disabled={!scene.imageUrl || scene.status === 'generating_video'}
-                  className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-colors disabled:opacity-30 ${
-                    scene.videoUrl 
-                      ? 'bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20'
-                      : 'bg-dlm-accent text-black hover:brightness-110'
-                  }`}
-                >
-                  {scene.videoUrl ? 'Re-Render' : 'Veo Render'}
-                </button>
+                <div className="flex-1 flex gap-1">
+                   <button 
+                    onClick={() => onGenerateVideo(scene.id)}
+                    disabled={!scene.imageUrl || scene.status === 'generating_video'}
+                    className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-colors disabled:opacity-30 ${
+                      scene.videoUrl 
+                        ? 'bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20'
+                        : 'bg-dlm-accent text-black hover:brightness-110'
+                    }`}
+                  >
+                    {scene.videoUrl ? 'Re-Render' : 'Veo Render'}
+                  </button>
+                  {scene.videoUrl && onExtendVideo && (
+                    <button
+                      onClick={() => onExtendVideo(scene.id)}
+                      disabled={scene.status === 'generating_video'}
+                      className="px-2 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl border border-white/10 transition-colors"
+                      title="Extend Video (continue action)"
+                    >
+                      <PlusIcon />
+                    </button>
+                  )}
+                </div>
               </div>
               
               {scene.errorMsg && (

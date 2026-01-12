@@ -164,6 +164,7 @@ export default function ConfigStep({
       <div className="card-elevated p-6">
         <CharacterManager
           characters={config.characters}
+          config={config}
           onAddCharacter={onAddCharacter}
           onUpdateCharacter={onUpdateCharacter}
           onRemoveCharacter={onRemoveCharacter}

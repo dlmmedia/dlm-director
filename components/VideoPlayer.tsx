@@ -83,7 +83,11 @@ export const VideoPlayer: React.FC<Props> = ({ scenes, onClose }) => {
       videoRef.current.src = playableScenes[currentIndex].videoUrl!;
       videoRef.current.play()
         .then(() => setIsPlaying(true))
-        .catch(e => console.error(e));
+        .catch(e => {
+          if (e.name !== 'AbortError') {
+            console.error(e);
+          }
+        });
     }
   }, [currentIndex, playableScenes]);
 

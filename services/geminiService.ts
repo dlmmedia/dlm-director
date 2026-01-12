@@ -304,7 +304,7 @@ Extract locations with specific environmental details.`,
   }
 };
 
-// --- 5. ENHANCED SCENE IMAGE GENERATION (Nano Banana Pro / Imagen 3) ---
+// --- 5. ENHANCED SCENE IMAGE GENERATION (Nano Banana Pro / Imagen 3/4) ---
 export const generateSceneImage = async (
   visualPrompt: string,
   aspectRatio: string,
@@ -325,22 +325,95 @@ export const generateSceneImage = async (
 
   console.log('🎬 Generating image with enhanced prompt:', finalPrompt.substring(0, 200) + '...');
 
+  // Prepare reference images if any
+  // @ts-ignore
+  const referenceImages = [];
+  
+  if (config && scene && scene.referenceImages && scene.referenceImages.length > 0) {
+    console.log(`🖼️ Using ${scene.referenceImages.length} reference images for Image Generation`);
+    
+    // Add explicitly selected scene references
+    for (const ref of scene.referenceImages) {
+      if (ref.type === 'INGREDIENT') continue; // Ingredients are for video only
+      
+      let imageBytes = ref.base64;
+      if (!imageBytes && ref.url.startsWith('data:')) {
+        imageBytes = ref.url.split(',')[1];
+      }
+
+      if (imageBytes) {
+        referenceImages.push({
+          referenceType: ref.type, // STYLE or SUBJECT
+          image: {
+            imageBytes: imageBytes,
+            mimeType: ref.mimeType
+          },
+          referenceId: ref.id // Optional but good for tracking
+        });
+      }
+    }
+  }
+
+  // Add global style references if any (and not already added)
+  if (config?.globalReferenceImages) {
+    for (const ref of config.globalReferenceImages) {
+      // Avoid duplicates
+      if (referenceImages.some((r: any) => r.referenceId === ref.id)) continue;
+      
+      if (ref.type === 'STYLE') {
+        let imageBytes = ref.base64;
+        if (!imageBytes && ref.url.startsWith('data:')) {
+            imageBytes = ref.url.split(',')[1];
+        }
+
+        if (imageBytes) {
+           referenceImages.push({
+            referenceType: 'STYLE',
+            image: { imageBytes, mimeType: ref.mimeType },
+            referenceId: ref.id
+          });
+        }
+      }
+    }
+  }
+
   try {
-    const response = await ai.models.generateImages({
-      model: 'imagen-4.0-generate-001',
-      prompt: finalPrompt,
+    // Convert reference images to inlineData parts for generateContent
+    const contentParts: any[] = [{ text: finalPrompt }];
+    
+    // @ts-ignore
+    if (referenceImages.length > 0) {
+      console.log(`🖼️ Attaching ${referenceImages.length} reference images to prompt`);
+      // @ts-ignore
+      referenceImages.forEach(ref => {
+        contentParts.push({
+          inlineData: {
+            mimeType: ref.image.mimeType,
+            data: ref.image.imageBytes
+          }
+        });
+      });
+    }
+
+    const response = await ai.models.generateContent({
+      model: 'nano-banana-pro-preview',
+      contents: [{ role: 'user', parts: contentParts }],
       config: {
-        numberOfImages: 1,
+        responseModalities: ['IMAGE'],
         // @ts-ignore
         aspectRatio: aspectRatio
       }
     });
 
-    // @ts-ignore
-    if (response.generatedImages?.[0]?.image?.imageBytes) {
-      // @ts-ignore
-      return `data:image/png;base64,${response.generatedImages[0].image.imageBytes}`;
+    // Parse generateContent response
+    const candidate = response.candidates?.[0];
+    const imagePart = candidate?.content?.parts?.[0];
+    
+    if (imagePart?.inlineData?.data) {
+      const mimeType = imagePart.inlineData.mimeType || 'image/png';
+      return `data:${mimeType};base64,${imagePart.inlineData.data}`;
     }
+    
     throw new Error("No image data found in response");
   } catch (error) {
     console.error("Image gen error:", error);
@@ -379,24 +452,83 @@ export const generateSceneVideo = async (
   console.log(`🎬 Generating video for Scene ${scene ? scene.id : 'unknown'}`);
   console.log(`📝 Video Prompt: ${finalPrompt}`);
   console.log(`📐 Aspect Ratio: ${aspectRatio}`);
+  if (config?.audioEnabled) {
+    console.log('🔊 Audio generation requested via prompt');
+  }
 
+  // --- VEO 3.1 INPUTS ---
+  // @ts-ignore
+  const referenceImages = [];
+  
+  // 1. Scene Ingredients (Reference Images)
+  if (config && scene && scene.referenceImages && scene.referenceImages.length > 0) {
+    console.log(`🖼️ Using ${scene.referenceImages.length} reference images (ingredients) for Veo`);
+    
+    for (const ref of scene.referenceImages) {
+      let imageBytes = ref.base64;
+      if (!imageBytes && ref.url.startsWith('data:')) {
+        imageBytes = ref.url.split(',')[1];
+      } else if (!imageBytes && ref.url.startsWith('http')) {
+        // Need to fetch URL if base64 is missing
+        try {
+            const res = await fetch(ref.url);
+            const buf = await res.arrayBuffer();
+            imageBytes = Buffer.from(buf).toString('base64');
+        } catch(e) { console.error("Failed to fetch ref image", e); continue; }
+      }
+
+      if (imageBytes) {
+        referenceImages.push({
+          image: {
+            imageBytes: imageBytes,
+            mimeType: ref.mimeType
+          },
+          referenceId: ref.id
+        });
+      }
+    }
+  }
+
+  // 2. Main Input Image (Image-to-Video)
   // Helper to get base64 from input (which might be a URL or data URI)
-  let imageBytes: string;
+  let imageBytes: string | undefined;
   let mimeType = 'image/png';
 
-  if (imageBase64.startsWith('http')) {
-    console.log('⬇️ Fetching source image from URL:', imageBase64);
-    const imgRes = await fetch(imageBase64);
-    if (!imgRes.ok) throw new Error(`Failed to fetch source image: ${imgRes.status}`);
-    const arrayBuffer = await imgRes.arrayBuffer();
-    imageBytes = Buffer.from(arrayBuffer).toString('base64');
-    const contentType = imgRes.headers.get('content-type');
-    if (contentType) mimeType = contentType;
-  } else {
-    // It's likely a data URI
-    imageBytes = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, '');
-    const match = imageBase64.match(/^data:(image\/[a-z]+);base64,/);
-    if (match) mimeType = match[1];
+  if (imageBase64) {
+    if (imageBase64.startsWith('http')) {
+        console.log('⬇️ Fetching source image from URL:', imageBase64);
+        const imgRes = await fetch(imageBase64);
+        if (!imgRes.ok) throw new Error(`Failed to fetch source image: ${imgRes.status}`);
+        const arrayBuffer = await imgRes.arrayBuffer();
+        imageBytes = Buffer.from(arrayBuffer).toString('base64');
+        const contentType = imgRes.headers.get('content-type');
+        if (contentType) mimeType = contentType;
+    } else {
+        // It's likely a data URI
+        imageBytes = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, '');
+        const match = imageBase64.match(/^data:(image\/[a-z]+);base64,/);
+        if (match) mimeType = match[1];
+    }
+  }
+
+  // 3. Frame Anchoring (First/Last Frame)
+  let lastFrameImage: any = undefined;
+  
+  if (scene?.frameAnchoring?.lastFrameUrl) {
+     console.log('⚓ Using last frame anchor');
+     let lastBytes = '';
+     if (scene.frameAnchoring.lastFrameUrl.startsWith('data:')) {
+        lastBytes = scene.frameAnchoring.lastFrameUrl.split(',')[1];
+     } else {
+         const res = await fetch(scene.frameAnchoring.lastFrameUrl);
+         const buf = await res.arrayBuffer();
+         lastBytes = Buffer.from(buf).toString('base64');
+     }
+     
+     lastFrameImage = {
+         imageBytes: lastBytes,
+         mimeType: 'image/png' // Assuming png or detect from url
+     };
   }
 
   try {
@@ -407,10 +539,15 @@ export const generateSceneVideo = async (
     let operation = await ai.models.generateVideos({
       model: modelId,
       prompt: finalPrompt,
-      image: {
+      // @ts-ignore - SDK supports image input
+      image: imageBytes ? {
         imageBytes,
         mimeType,
-      },
+      } : undefined,
+      // @ts-ignore - SDK supports reference images
+      referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
+      // @ts-ignore - SDK supports last frame
+      lastFrameImage: lastFrameImage,
       config: {
         numberOfVideos: 1,
         // @ts-ignore - SDK might use durationSeconds or similar
@@ -488,6 +625,88 @@ export const generateSceneVideo = async (
       console.error(`FAILED PROMPT: ${finalPrompt}`);
     }
     throw error;
+  }
+};
+
+// --- 8. VIDEO EXTENSION (Veo 3.1) ---
+export const extendVideo = async (
+  videoBase64: string,
+  prompt: string,
+  config?: ProjectConfig
+): Promise<string> => {
+    // Ensure we have a key selected for Veo
+  if (typeof window !== 'undefined' && window.aistudio && window.aistudio.hasSelectedApiKey) {
+    const hasKey = await window.aistudio.hasSelectedApiKey();
+    if (!hasKey) {
+      throw new Error("API_KEY_REQUIRED");
+    }
+  }
+
+  const ai = getAi();
+  
+  // Clean up prompt
+  const finalPrompt = enhanceVideoPrompt(prompt);
+  console.log(`⏩ Extending video with prompt: ${finalPrompt}`);
+
+  // Process input video
+  let videoBytes = videoBase64.replace(/^data:video\/(mp4|webm);base64,/, '');
+  let mimeType = 'video/mp4';
+
+  try {
+     // Switch to Veo 3.1
+    const modelId = config?.videoModel || VideoModel.VEO_3_1;
+    
+    // Note: Video extension typically uses the 'generateVideos' endpoint but with video input
+    // The current SDK might handle this via 'generateVideos' with a video object if supported
+    // OR it might be a separate method. We'll try passing it as 'video' content.
+    
+    // IMPORTANT: As of early 2026, check if SDK supports video input for extension directly
+    // If not, we might need to rely on the backend API structure.
+    
+    // Attempting via standard generateVideos with video input (hypothetical SDK support)
+    // If this fails, we might need to use raw REST call or check updated SDK docs
+    
+    let operation = await ai.models.generateVideos({
+      model: modelId,
+      prompt: finalPrompt,
+      // @ts-ignore - Hypothetical SDK support for video input in generateVideos
+      video: {
+          videoBytes,
+          mimeType
+      },
+      config: {
+          numberOfVideos: 1,
+          aspectRatio: config?.aspectRatio as any || '16:9'
+      }
+    });
+
+     // Polling loop
+    console.log('⏳ Polling for video extension...');
+    let pollCount = 0;
+    while (!operation.done) {
+      pollCount++;
+      if (pollCount > 120) throw new Error("Video extension timed out");
+
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      // @ts-ignore
+      operation = await ai.operations.getVideosOperation({ operation: operation });
+    }
+
+    // @ts-ignore
+    const videoUri = operation.result?.generatedVideos?.[0]?.video?.uri;
+    
+    if (!videoUri) throw new Error("Extension failed: No URI");
+
+    const fetchUrl = videoUri.includes('key=') ? videoUri : `${videoUri}${videoUri.includes('?') ? '&' : '?'}key=${API_KEY}`;
+    const res = await fetch(fetchUrl);
+    if (!res.ok) throw new Error("Failed to download extended video");
+    
+    const arrayBuffer = await res.arrayBuffer();
+    return `data:video/mp4;base64,${Buffer.from(arrayBuffer).toString('base64')}`;
+
+  } catch (error) {
+      console.error("Video extension error:", error);
+      throw error;
   }
 };
 

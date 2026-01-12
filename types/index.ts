@@ -241,6 +241,27 @@ export interface LocationProfile {
   atmosphere: string;
 }
 
+// --- REFERENCES ---
+export interface ReferenceImage {
+  id: string;
+  type: 'STYLE' | 'SUBJECT' | 'INGREDIENT';
+  source: 'UPLOAD' | 'PROJECT_IMAGE';
+  url: string; // Could be a blob URL or base64 data URI
+  base64?: string; // Optional raw base64 data for API transmission
+  mimeType: string;
+}
+
+// --- VIDEO GENERATION CONFIG (VEO 3.1) ---
+export interface VideoGenerationConfig {
+  model: VideoModel;
+  aspectRatio: AspectRatio;
+  durationSeconds?: number;
+  fps?: number;
+  resolution?: '1080p' | '4k';
+  seed?: number;
+  personGeneration?: 'allow_adult' | 'dont_allow';
+}
+
 // --- SCENE (enhanced) ---
 export interface Scene {
   id: number;
@@ -267,6 +288,18 @@ export interface Scene {
   // References
   characterIds: string[];
   locationId?: string;
+  referenceImages: ReferenceImage[]; // Array of reference images for this scene
+  
+  // Frame Anchoring (VEO 3.1)
+  frameAnchoring?: {
+    firstFrameImageId?: string; // ID referencing a ReferenceImage or project image
+    lastFrameImageId?: string;
+    firstFrameUrl?: string;
+    lastFrameUrl?: string;
+  };
+
+  // Video Extension
+  extendedFromVideoUrl?: string; // If this scene extends another video
   
   // Transitions
   transitionIn?: TransitionType;
@@ -306,19 +339,23 @@ export interface ProjectConfig {
   characters: CharacterProfile[];
   locations: LocationProfile[];
   
+  // Global References
+  globalReferenceImages: ReferenceImage[];
+
   // Style consistency
   globalStyle: string;
   negativePrompt: string;
   colorGrading: string;
   filmGrain: boolean;
   
-  // Audio (future)
+  // Audio
   voiceoverEnabled: boolean;
+  audioEnabled?: boolean;
   musicStyle?: string;
 
   // Video Model
   videoModel?: VideoModel;
-}
+};
 
 // --- TRENDING ---
 export interface TrendingTopic {
@@ -450,6 +487,7 @@ export function createDefaultScene(id: number): Scene {
     lightingStyle: LightingStyle.SOFT_DIFFUSED,
     lightSource: LightSource.DAYLIGHT,
     characterIds: [],
+    referenceImages: [],
     transitionIn: TransitionType.CUT,
     transitionOut: TransitionType.CUT
   };
@@ -468,11 +506,13 @@ export function createDefaultConfig(): ProjectConfig {
     defaultColorPalette: 'teal-orange',
     characters: [],
     locations: [],
+    globalReferenceImages: [],
     globalStyle: 'photorealistic, cinematic lighting, 4K resolution, film grain, shallow depth of field',
     negativePrompt: 'cartoon, anime, illustration, low quality, blurry, watermark, text overlay, deformed, ugly, bad anatomy',
     colorGrading: 'professional cinematic color grading',
     filmGrain: true,
     voiceoverEnabled: false,
+    audioEnabled: false,
     videoModel: VideoModel.VEO_3_1
   };
 }

@@ -1,8 +1,8 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import { fetchFile } from '@ffmpeg/util';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
-import { Scene, TransitionType } from '@/types';
+import { Scene } from '@/types';
 
 // Helper to download a single file
 export const downloadFile = async (url: string, filename: string) => {
@@ -30,10 +30,17 @@ export const downloadImagesZip = async (scenes: Scene[], projectTitle: string) =
   await Promise.all(imageScenes.map(async (scene, index) => {
     try {
       if (!scene.imageUrl) return;
-      const response = await fetch(scene.imageUrl);
-      const blob = await response.blob();
-      const ext = blob.type.split('/')[1] || 'png';
-      folder.file(`scene_${index + 1}_${scene.id}.${ext}`, blob);
+      // Handle data URIs and URLs differently
+      if (scene.imageUrl.startsWith('data:')) {
+         const base64Data = scene.imageUrl.split(',')[1];
+         folder.file(`scene_${index + 1}_${scene.id}.png`, base64Data, { base64: true });
+      } else {
+        const response = await fetch(scene.imageUrl, { mode: 'cors' });
+        if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
+        const blob = await response.blob();
+        const ext = blob.type.split('/')[1] || 'png';
+        folder.file(`scene_${index + 1}_${scene.id}.${ext}`, blob);
+      }
     } catch (e) {
       console.error(`Failed to download image for scene ${scene.id}`, e);
     }
@@ -41,6 +48,36 @@ export const downloadImagesZip = async (scenes: Scene[], projectTitle: string) =
 
   const content = await zip.generateAsync({ type: "blob" });
   saveAs(content, `${projectTitle.replace(/[^a-z0-9]/gi, '_')}_images.zip`);
+};
+
+// Download all videos as ZIP
+export const downloadVideosZip = async (scenes: Scene[], projectTitle: string) => {
+  const zip = new JSZip();
+  const folder = zip.folder(`${projectTitle.replace(/[^a-z0-9]/gi, '_')}_videos`);
+
+  if (!folder) throw new Error("Failed to create zip folder");
+
+  const videoScenes = scenes.filter(s => s.videoUrl);
+  
+  await Promise.all(videoScenes.map(async (scene, index) => {
+    try {
+      if (!scene.videoUrl) return;
+      if (scene.videoUrl.startsWith('data:')) {
+        const base64Data = scene.videoUrl.split(',')[1];
+        folder.file(`scene_${index + 1}_${scene.id}.mp4`, base64Data, { base64: true });
+      } else {
+        const response = await fetch(scene.videoUrl, { mode: 'cors' });
+         if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
+        const blob = await response.blob();
+        folder.file(`scene_${index + 1}_${scene.id}.mp4`, blob);
+      }
+    } catch (e) {
+      console.error(`Failed to download video for scene ${scene.id}`, e);
+    }
+  }));
+
+  const content = await zip.generateAsync({ type: "blob" });
+  saveAs(content, `${projectTitle.replace(/[^a-z0-9]/gi, '_')}_videos.zip`);
 };
 
 // Stitch videos using ffmpeg.wasm
@@ -53,15 +90,20 @@ export const stitchVideos = async (
 
   const ffmpeg = new FFmpeg();
   
-  try {
+  // Log all ffmpeg messages
+  ffmpeg.on('log', ({ message }) => {
+    console.log('[FFmpeg]', message);
+  });
+  
+    try {
     onProgress(0, 'Loading FFmpeg...');
-    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm';
     
-    // Load single-threaded core
-    // We use toBlobURL to avoid issues with loading scripts from remote URLs directly in workers
+    // Use local files from public/ffmpeg to avoid CORS and Webpack blob import issues
+    const baseURL = typeof window !== 'undefined' ? window.location.origin : '';
+    
     await ffmpeg.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+      coreURL: `${baseURL}/ffmpeg/ffmpeg-core.js`,
+      wasmURL: `${baseURL}/ffmpeg/ffmpeg-core.wasm`,
     });
 
     onProgress(10, 'Downloading clips...');
@@ -74,9 +116,21 @@ export const stitchVideos = async (
       if (!scene.videoUrl) continue;
       
       const filename = `input${i}.mp4`;
-      const data = await fetchFile(scene.videoUrl);
-      await ffmpeg.writeFile(filename, data);
-      inputFiles.push(filename);
+      
+      try {
+        const data = await fetchFile(scene.videoUrl);
+        await ffmpeg.writeFile(filename, data);
+        inputFiles.push(filename);
+      } catch (fetchError) {
+        console.error(`Failed to load video for scene ${scene.id}:`, fetchError);
+        // Continue but skip this file? Or fail? 
+        // Failing is probably safer as the output would be incomplete
+        throw new Error(`Failed to download video for scene ${scene.id}`);
+      }
+    }
+
+    if (inputFiles.length === 0) {
+      throw new Error("No video files could be loaded.");
     }
 
     onProgress(40, 'Generating concat list...');
@@ -97,8 +151,9 @@ export const stitchVideos = async (
     
     return blob;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Stitching failed:', error);
+    onProgress(0, `Error: ${error.message || 'Stitching failed'}`);
     throw error;
   } finally {
     // Attempt to terminate if possible, but for single-threaded it's less critical
