@@ -19,7 +19,7 @@ export enum VideoCategory {
 // --- VIDEO MODELS ---
 export enum VideoModel {
   VEO_3_1 = 'veo-3.1-generate-preview',
-  VEO_2_0 = 'veo-2.0-generate-preview'
+  VEO_2_0 = 'veo-2.0-generate-001'
 }
 
 // --- ASPECT RATIOS ---

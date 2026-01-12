@@ -31,7 +31,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           onClick={() => onSelect(VideoModel.VEO_2_0)}
           disabled={disabled}
           className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-            currentModel === VideoModel.VEO_2_0 
+            currentModel === VideoModel.VEO_2_0 || (currentModel as any) === 'veo-2.0-generate-preview'
               ? 'bg-dlm-accent text-black shadow-lg' 
               : 'text-gray-400 hover:text-white'
           }`}

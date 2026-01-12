@@ -138,7 +138,7 @@ export default function ProductionStep({
                 </label>
                 <ModelSelector 
                   currentModel={config.videoModel} 
-                  onSelect={(model) => onUpdateConfig({ videoModel: model })}
+                  onSelect={(model) => onUpdateConfig && onUpdateConfig({ videoModel: model })}
                   disabled={generatingAllVideos}
                 />
               </div>

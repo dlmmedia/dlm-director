@@ -8,6 +8,7 @@ import {
   TrendingTopic,
   CharacterProfile,
   createDefaultConfig,
+  VideoModel,
 } from '@/types';
 import { 
   generateScript, 
@@ -102,6 +103,12 @@ export default function Home() {
       if (project) {
         setCurrentProjectId(id);
         const projectConfig = project.config || createDefaultConfig();
+        
+        // MIGRATION: Fix old Veo 2.0 model ID if present
+        if (projectConfig.videoModel === 'veo-2.0-generate-preview' as any) {
+            projectConfig.videoModel = VideoModel.VEO_2_0;
+        }
+        
         setConfig(projectConfig);
         // Initialize lastSavedConfigRef with the loaded config to prevent immediate auto-save
         lastSavedConfigRef.current = JSON.stringify(projectConfig);
@@ -325,7 +332,7 @@ export default function Home() {
         return newConfig;
       });
     } catch (e: any) {
-      let errorMsg = 'Video generation failed';
+      let errorMsg = e.message || 'Video generation failed';
       if (e.message === 'API_KEY_REQUIRED') {
         errorMsg = "API Key Required for Veo";
       }
