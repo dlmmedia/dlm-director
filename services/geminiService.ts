@@ -81,7 +81,7 @@ export const fetchTrendingTopics = async (category: VideoCategory): Promise<any[
     });
 
     if (response.text) {
-      let cleanText = typeof response.text === 'function' ? response.text() : response.text;
+      let cleanText = (typeof response.text === 'function' ? response.text() : response.text) as string;
       if (!cleanText) return [];
       
       cleanText = cleanText.replace(/```json/g, "").replace(/```/g, "").trim();
