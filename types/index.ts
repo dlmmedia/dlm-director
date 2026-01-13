@@ -43,7 +43,8 @@ export enum CameraBody {
   IMAX_LF = 'IMAX Large Format',
   IMAX_1570 = 'IMAX 15/70mm Film',
   PANAVISION_DXL2 = 'Panavision DXL2',
-  CANON_C500 = 'Canon EOS C500 Mark II'
+  CANON_C500 = 'Canon EOS C500 Mark II',
+  HASSELBLAD_PRIME = 'Hasselblad X2D 100C'
 }
 
 export enum LensType {
