@@ -81,7 +81,8 @@ export const fetchTrendingTopics = async (category: VideoCategory): Promise<any[
     });
 
     if (response.text) {
-      let cleanText = (typeof response.text === 'function' ? response.text() : response.text) as string;
+      const responseAny = response as any;
+      let cleanText = typeof responseAny.text === 'function' ? responseAny.text() : responseAny.text;
       if (!cleanText) return [];
       
       cleanText = cleanText.replace(/```json/g, "").replace(/```/g, "").trim();
@@ -204,7 +205,8 @@ FILM GRAMMAR RULES TO FOLLOW:
     }), 60000, "Script generation timed out");
 
     console.log('📥 Received response from Gemini for script');
-    let rawText = (typeof response.text === 'function' ? response.text() : response.text) || '[]';
+    const responseAny = response as any;
+    let rawText = (typeof responseAny.text === 'function' ? responseAny.text() : responseAny.text) || '[]';
     
     // Remove markdown code blocks if present (Gemini often wraps JSON in ```json ... ```)
     rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
