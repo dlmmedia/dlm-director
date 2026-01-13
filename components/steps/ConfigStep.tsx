@@ -21,7 +21,7 @@ interface ConfigStepProps {
   extractingEntities: boolean;
   loadingScript: boolean;
   onExtractEntities: () => void;
-  onGenerateScript: () => void;
+  onGenerateScript: (sceneCount: number) => void;
   onBack: () => void;
   onAddCharacter: (character: CharacterProfile) => void;
   onUpdateCharacter: (id: string, updates: Partial<CharacterProfile>) => void;
@@ -40,6 +40,28 @@ export default function ConfigStep({
   onUpdateCharacter,
   onRemoveCharacter
 }: ConfigStepProps) {
+  const [sceneCount, setSceneCount] = React.useState(5);
+  const [customCount, setCustomCount] = React.useState('5');
+  const [isCustom, setIsCustom] = React.useState(false);
+
+  const handleSceneCountSelect = (val: number | 'custom') => {
+    if (val === 'custom') {
+      setIsCustom(true);
+    } else {
+      setIsCustom(false);
+      setSceneCount(val);
+      setCustomCount(val.toString());
+    }
+  };
+
+  const handleCustomCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setCustomCount(val);
+    const num = parseInt(val);
+    if (!isNaN(num) && num > 0) {
+      setSceneCount(num);
+    }
+  };
   
   const updateConfig = (updates: Partial<ProjectConfig>) => {
     setConfig(prev => ({ ...prev, ...updates }));
@@ -114,28 +136,69 @@ export default function ConfigStep({
       </div>
 
       {/* Navigation */}
-      <div className="flex justify-between pt-6">
+      <div className="flex justify-between items-end pt-6">
         <button onClick={onBack} className="btn-ghost">
           <ArrowLeftIcon />
           <span>Back</span>
         </button>
-        <button 
-          onClick={onGenerateScript}
-          disabled={loadingScript || !config.userPrompt}
-          className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loadingScript ? (
-            <>
-              <LoadingSpinner size={20} color="#000" />
-              <span>Generating Script...</span>
-            </>
-          ) : (
-            <>
-              <MagicIcon />
-              <span>Generate Cinematic Script</span>
-            </>
-          )}
-        </button>
+        
+        <div className="flex flex-col items-end gap-3">
+            {/* Scene Count Selector */}
+            <div className="flex items-center gap-2 bg-white/5 p-1 rounded-lg border border-white/10">
+                <span className="text-xs text-gray-500 font-medium px-2">Scenes:</span>
+                {[5, 10, 15].map(num => (
+                    <button
+                        key={num}
+                        onClick={() => handleSceneCountSelect(num)}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${
+                            !isCustom && sceneCount === num 
+                                ? 'bg-white/20 text-white shadow-sm' 
+                                : 'text-gray-400 hover:text-white hover:bg-white/10'
+                        }`}
+                    >
+                        {num}
+                    </button>
+                ))}
+                <button
+                    onClick={() => handleSceneCountSelect('custom')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${
+                        isCustom
+                            ? 'bg-white/20 text-white shadow-sm' 
+                            : 'text-gray-400 hover:text-white hover:bg-white/10'
+                    }`}
+                >
+                    Custom
+                </button>
+                {isCustom && (
+                    <input 
+                        type="number" 
+                        min="1" 
+                        max="50"
+                        value={customCount}
+                        onChange={handleCustomCountChange}
+                        className="w-12 bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white text-center focus:border-dlm-accent outline-none"
+                    />
+                )}
+            </div>
+
+            <button 
+            onClick={() => onGenerateScript(sceneCount)}
+            disabled={loadingScript || !config.userPrompt}
+            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+            {loadingScript ? (
+                <>
+                <LoadingSpinner size={20} color="#000" />
+                <span>Generating Script ({sceneCount} scenes)...</span>
+                </>
+            ) : (
+                <>
+                <MagicIcon />
+                <span>Generate Cinematic Script</span>
+                </>
+            )}
+            </button>
+        </div>
       </div>
     </div>
   );

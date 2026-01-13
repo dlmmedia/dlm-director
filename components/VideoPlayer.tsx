@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Scene, TransitionType } from '../types';
+import { MaximizeIcon, MinimizeIcon, PictureInPictureIcon } from './Icons';
 
 interface Props {
   scenes: Scene[];
@@ -46,13 +47,21 @@ const CloseIcon = () => (
 );
 
 export const VideoPlayer: React.FC<Props> = ({ scenes, onClose }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [progress, setProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const controlsTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // Reset error when index changes
+  useEffect(() => {
+    setError(null);
+  }, [currentIndex]);
 
   // Filter only ready scenes with valid video URLs
   const playableScenes = useMemo(() => 
@@ -146,6 +155,10 @@ export const VideoPlayer: React.FC<Props> = ({ scenes, onClose }) => {
         e.preventDefault();
         handlePlayPause();
         break;
+      case 'f':
+      case 'F':
+        toggleFullscreen();
+        break;
       case 'ArrowLeft':
         if (currentIndex > 0) setCurrentIndex(currentIndex - 1);
         break;
@@ -153,8 +166,69 @@ export const VideoPlayer: React.FC<Props> = ({ scenes, onClose }) => {
         if (currentIndex < playableScenes.length - 1) setCurrentIndex(currentIndex + 1);
         break;
       case 'Escape':
-        onClose();
+        if (isFullscreen) {
+           toggleFullscreen();
+        } else {
+           onClose();
+        }
         break;
+    }
+  };
+
+  const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+    const video = e.currentTarget;
+    console.error('Video Error Event:', e);
+    console.error('Video Source:', video.src);
+    
+    let msg = 'Playback Error';
+    if (video.error) {
+      console.error('Video Error Details:', {
+        code: video.error.code,
+        message: video.error.message,
+        src: video.src
+      });
+      
+      switch (video.error.code) {
+        case 1: msg = 'Aborted (The fetching of the associated resource was aborted by the user)'; break;
+        case 2: msg = 'Network Error (Some kind of network error occurred which prevented the media from being successfully fetched)'; break;
+        case 3: msg = 'Decoding Error (Despite having previously been determined to be usable, an error occurred while trying to decode the media resource)'; break;
+        case 4: msg = 'Source Not Supported (The associated resource or media provider object (such as a MediaStream) has been found to be unsuitable)'; break;
+      }
+      if (video.error.message) {
+        msg += `: ${video.error.message}`;
+      }
+    } else {
+        // Fallback if error object is null but event fired
+        console.warn('Video error event fired but video.error is null', e);
+        if (video.networkState === 3) { // NETWORK_NO_SOURCE
+            msg = 'Source Not Found or Not Supported';
+        }
+    }
+    setError(msg);
+    setIsPlaying(false);
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen mode: ${err.message}`);
+      });
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  };
+
+  const togglePictureInPicture = async () => {
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else if (videoRef.current) {
+        await videoRef.current.requestPictureInPicture();
+      }
+    } catch (error) {
+      console.error('PiP failed:', error);
     }
   };
 
@@ -198,6 +272,7 @@ export const VideoPlayer: React.FC<Props> = ({ scenes, onClose }) => {
 
   return (
     <motion.div 
+      ref={containerRef}
       className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black"
       onKeyDown={handleKeyDown}
       tabIndex={0}
@@ -223,14 +298,39 @@ export const VideoPlayer: React.FC<Props> = ({ scenes, onClose }) => {
                 Scene {currentIndex + 1} of {playableScenes.length}
               </p>
             </div>
-            <motion.button 
-              onClick={onClose}
-              className="p-2 text-white/50 hover:text-white rounded-full hover:bg-white/10 transition-colors"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-            >
-              <CloseIcon />
-            </motion.button>
+            
+            <div className="flex items-center gap-2">
+              <motion.button 
+                onClick={togglePictureInPicture}
+                className="p-2 text-white/50 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                title="Picture in Picture"
+              >
+                <PictureInPictureIcon />
+              </motion.button>
+              
+              <motion.button 
+                onClick={toggleFullscreen}
+                className="p-2 text-white/50 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+              >
+                {isFullscreen ? <MinimizeIcon /> : <MaximizeIcon />}
+              </motion.button>
+
+              <div className="w-px h-6 bg-white/10 mx-2" />
+
+              <motion.button 
+                onClick={onClose}
+                className="p-2 text-white/50 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+              >
+                <CloseIcon />
+              </motion.button>
+            </div>
           </div>
         </div>
       </motion.div>
@@ -251,9 +351,11 @@ export const VideoPlayer: React.FC<Props> = ({ scenes, onClose }) => {
         
         <motion.video
           ref={videoRef}
+          crossOrigin="anonymous"
           className="w-full h-full object-contain"
           onEnded={handleEnded}
           onClick={handlePlayPause}
+          onError={handleVideoError}
           initial={{ scale: 0.98, opacity: 0 }}
           animate={{ 
             scale: transitioning ? 0.98 : 1, 
@@ -261,6 +363,35 @@ export const VideoPlayer: React.FC<Props> = ({ scenes, onClose }) => {
           }}
           transition={{ duration: 0.3 }}
         />
+
+        {/* Error Overlay */}
+        <AnimatePresence>
+          {error && (
+            <motion.div 
+              className="absolute inset-0 flex items-center justify-center bg-black/80 z-30"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <div className="text-center p-6 bg-red-900/20 border border-red-500/30 rounded-xl backdrop-blur-md">
+                <div className="text-red-500 font-bold mb-2 text-xl">Video Error</div>
+                <p className="text-white/80">{error}</p>
+                <button 
+                  onClick={() => {
+                    setError(null);
+                    if (videoRef.current) {
+                        videoRef.current.load();
+                        videoRef.current.play().catch(console.error);
+                    }
+                  }}
+                  className="mt-4 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-colors text-sm"
+                >
+                  Retry
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Narration Overlay */}
         <AnimatePresence>
@@ -345,7 +476,7 @@ export const VideoPlayer: React.FC<Props> = ({ scenes, onClose }) => {
                   transition={{ delay: idx * 0.03 }}
                 >
                   {scene.imageUrl ? (
-                    <img src={scene.imageUrl} alt="" className="w-full h-full object-cover" />
+                    <img src={scene.imageUrl} crossOrigin="anonymous" alt="" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full bg-white/[0.05] flex items-center justify-center text-xs text-gray-500 font-mono">
                       {idx + 1}

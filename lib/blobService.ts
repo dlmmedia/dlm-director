@@ -301,6 +301,9 @@ async function blobUpdateProjectThumbnail(
 // --- EXPORTED FACADE ---
 
 export async function getProjectsIndex(): Promise<ProjectsIndex> {
+  // #region agent log
+  fetch('http://127.0.0.1:7243/ingest/38be5295-f513-45bf-9b9a-128482a00dc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/blobService.ts:302',message:'getProjectsIndex called',data:{USE_BLOB},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
+  // #endregion
   return USE_BLOB ? blobGetProjectsIndex() : local.getProjectsIndex();
 }
 

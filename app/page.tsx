@@ -39,6 +39,12 @@ import ScriptReviewStep from '@/components/steps/ScriptReviewStep';
 import ProductionStep from '@/components/steps/ProductionStep';
 
 export default function Home() {
+  // #region agent log
+  useEffect(() => {
+    fetch('http://127.0.0.1:7243/ingest/38be5295-f513-45bf-9b9a-128482a00dc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/page.tsx:43',message:'Home component mounted',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H_PAGE'})}).catch(()=>{});
+  }, []);
+  // #endregion
+
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [config, setConfig] = useState<ProjectConfig>(createDefaultConfig());
@@ -60,6 +66,25 @@ export default function Home() {
 
   // Ref to track last saved state to prevent loop
   const lastSavedConfigRef = useRef<string>('');
+  
+  // Ref to track last synced title to refresh sidebar
+  const lastSyncedTitleRef = useRef<string>('');
+
+  // Sync Sidebar when title changes
+  useEffect(() => {
+    // If we have a project ID, the title is valid (not empty), it changed, and it's not the default "New Project"
+    // (unless we actually renamed it to "New Project", but that's edge case)
+    if (currentProjectId && config.title && config.title !== lastSyncedTitleRef.current) {
+       // We rely on auto-save (debounced 2s).
+       // So we trigger refresh after a delay to ensure backend is updated.
+       const timer = setTimeout(() => {
+          console.log('Refreshing sidebar due to title change');
+          setSidebarRefreshTrigger(prev => prev + 1);
+          lastSyncedTitleRef.current = config.title || '';
+       }, 3000); // 2s debounce + 1s buffer
+       return () => clearTimeout(timer);
+    }
+  }, [config.title, currentProjectId]);
 
   // Auto-save effect
   useEffect(() => {
@@ -97,6 +122,9 @@ export default function Home() {
   };
 
   const handleProjectSelect = async (id: string) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/38be5295-f513-45bf-9b9a-128482a00dc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/page.tsx:123',message:'handleProjectSelect',data:{id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H_PROJECT_SELECT'})}).catch(()=>{});
+    // #endregion
     setSaveStatus('saving');
     try {
       const project = await fetchProject(id);
@@ -112,6 +140,7 @@ export default function Home() {
         setConfig(projectConfig);
         // Initialize lastSavedConfigRef with the loaded config to prevent immediate auto-save
         lastSavedConfigRef.current = JSON.stringify(projectConfig);
+        lastSyncedTitleRef.current = projectConfig.title || '';
         setStep(projectConfig?.scenes?.length > 0 ? 2 : 0);
         setSaveStatus('saved');
       } else {
@@ -204,7 +233,7 @@ export default function Home() {
     }
   };
 
-  const handleGenerateScript = async () => {
+  const handleGenerateScript = async (sceneCount: number = 5) => {
     const currentConfig = config;
     if (!currentConfig.userPrompt) return;
     setLoadingScript(true);
@@ -215,7 +244,7 @@ export default function Home() {
         currentConfig.style, 
         currentConfig.userPrompt,
         currentConfig,
-        5
+        sceneCount
       );
       setConfig(prev => {
         const newConfig = { ...prev, scenes };

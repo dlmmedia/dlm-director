@@ -141,7 +141,7 @@ export const ReferenceImagePicker: React.FC<ReferenceImagePickerProps> = ({
         <div className="grid grid-cols-3 gap-2 mb-4">
           {selectedRefs.map((ref) => (
             <div key={ref.id} className="relative group aspect-video bg-black/40 rounded-lg overflow-hidden border border-white/10">
-              <img src={ref.url} alt="Reference" className="w-full h-full object-cover" />
+              <img src={ref.url} crossOrigin="anonymous" alt="Reference" className="w-full h-full object-cover" />
               <button
                 onClick={() => removeRef(ref.id)}
                 className="absolute top-1 right-1 p-1 bg-black/60 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80"
@@ -228,7 +228,7 @@ export const ReferenceImagePicker: React.FC<ReferenceImagePickerProps> = ({
                           isSelected ? 'border-dlm-accent opacity-100' : 'border-transparent opacity-60 hover:opacity-100'
                         }`}
                       >
-                        <img src={img.url} alt={`Scene ${img.sceneId}`} className="w-full h-full object-cover" />
+                        <img src={img.url} crossOrigin="anonymous" alt={`Scene ${img.sceneId}`} className="w-full h-full object-cover" />
                         {isSelected && (
                           <div className="absolute inset-0 bg-dlm-accent/20 flex items-center justify-center">
                             <div className="bg-dlm-accent text-black rounded-full p-0.5">

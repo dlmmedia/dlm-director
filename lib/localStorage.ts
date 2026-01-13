@@ -21,6 +21,14 @@ async function ensureDataDir() {
 export async function getProjectsIndex(): Promise<ProjectsIndex> {
   try {
     await ensureDataDir();
+    // #region agent log
+    try {
+        const stats = await fs.stat(PROJECTS_INDEX_PATH);
+        fetch('http://127.0.0.1:7243/ingest/38be5295-f513-45bf-9b9a-128482a00dc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/localStorage.ts:27',message:'Reading projects index',data:{PROJECTS_INDEX_PATH, size: stats.size},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+    } catch(e) {
+        fetch('http://127.0.0.1:7243/ingest/38be5295-f513-45bf-9b9a-128482a00dc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/localStorage.ts:29',message:'Projects index missing or error',data:{PROJECTS_INDEX_PATH, error: String(e)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+    }
+    // #endregion
     const data = await fs.readFile(PROJECTS_INDEX_PATH, 'utf-8');
     return JSON.parse(data);
   } catch {
@@ -108,7 +116,7 @@ export async function saveProject(projectId: string, data: any): Promise<string>
     console.warn('Failed to update project index (non-critical):', error);
   }
 
-  return `/data/projects/${projectId}/data.json`;
+  return `/api/files/projects/${projectId}/data.json`;
 }
 
 export async function deleteProject(projectId: string): Promise<boolean> {
@@ -150,7 +158,7 @@ export async function uploadImage(
   }
 
   await fs.writeFile(filePath, buffer);
-  return `/data/projects/${projectId}/images/${fileName}`;
+  return `/api/files/projects/${projectId}/images/${fileName}`;
 }
 
 export async function uploadVideo(
@@ -172,16 +180,22 @@ export async function uploadVideo(
   }
 
   await fs.writeFile(filePath, buffer);
-  return `/data/projects/${projectId}/videos/${fileName}`;
+  return `/api/files/projects/${projectId}/videos/${fileName}`;
 }
 
 export async function deleteAsset(url: string): Promise<boolean> {
   try {
-    // URL is like /data/projects/...
-    // We need to map it back to file path
-    if (!url.startsWith('/data/')) return false;
+    // URL is like /api/files/projects/... or legacy /data/projects/...
+    let relativePath = '';
     
-    const relativePath = url.substring('/data/'.length); // Remove leading /data/
+    if (url.startsWith('/api/files/')) {
+       relativePath = url.substring('/api/files/'.length);
+    } else if (url.startsWith('/data/')) {
+       relativePath = url.substring('/data/'.length);
+    } else {
+       return false;
+    }
+    
     const filePath = path.join(DATA_DIR, relativePath);
     await fs.unlink(filePath);
     return true;

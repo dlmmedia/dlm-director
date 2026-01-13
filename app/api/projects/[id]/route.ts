@@ -14,6 +14,7 @@ import {
   getProjectsIndex,
   updateProjectsIndex
 } from '@/lib/blobService';
+import { createDefaultConfig } from '@/types';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -88,7 +89,61 @@ export async function PUT(
       updatedAt: new Date().toISOString(),
     };
 
+    // Safety check: Ensure config object exists
+    if (!updated.config) {
+      if (existing && existing.config) {
+        console.warn('PUT request missing config, preserving existing config');
+        updated.config = existing.config;
+      } else {
+        console.warn('Project has no config, creating default');
+        updated.config = createDefaultConfig();
+        updated.config.title = updated.title || 'Untitled Project';
+      }
+    }
+
     await saveProject(id, updated);
+
+    // Update index if title changed or just to update timestamp
+    try {
+      const index = await getProjectsIndex();
+      const projectIndex = index.projects.findIndex(p => p.id === id);
+      
+      if (projectIndex !== -1) {
+        let shouldUpdate = false;
+        
+        // Update timestamp
+        if (index.projects[projectIndex].updatedAt !== updated.updatedAt) {
+          index.projects[projectIndex].updatedAt = updated.updatedAt;
+          shouldUpdate = true;
+        }
+        
+        // Update title if changed in config
+        if (body.config && body.config.title && body.config.title !== index.projects[projectIndex].title) {
+          index.projects[projectIndex].title = body.config.title;
+          shouldUpdate = true;
+        }
+
+        // Update thumbnail if available in scenes
+        if (body.config && body.config.scenes && Array.isArray(body.config.scenes)) {
+            // Find the first scene with a valid image URL
+            const firstSceneWithImage = body.config.scenes.find((s: any) => s.imageUrl);
+            if (firstSceneWithImage && firstSceneWithImage.imageUrl) {
+                const newThumbnail = firstSceneWithImage.imageUrl;
+                if (newThumbnail !== index.projects[projectIndex].thumbnail) {
+                    index.projects[projectIndex].thumbnail = newThumbnail;
+                    shouldUpdate = true;
+                }
+            }
+        }
+
+        if (shouldUpdate) {
+          await updateProjectsIndex(index);
+        }
+      }
+    } catch (indexError) {
+      console.error('Failed to update project index during PUT:', indexError);
+      // Don't fail the request if index update fails, as the project data is saved
+    }
 
     return NextResponse.json({ success: true, updatedAt: updated.updatedAt });
   } catch (error) {

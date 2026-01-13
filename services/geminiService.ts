@@ -546,6 +546,13 @@ export const generateSceneVideo = async (
     const modelId = config?.videoModel || VideoModel.VEO_3_1;
     console.log(`🤖 Using model: ${modelId}`);
 
+    // Handle aspect ratio fix for 21:9
+    let validAspectRatio = aspectRatio;
+    if (aspectRatio === '21:9') {
+      console.warn('⚠️ 21:9 aspect ratio is not supported by Veo. Auto-correcting to 16:9.');
+      validAspectRatio = '16:9';
+    }
+
     let operation = await ai.models.generateVideos({
       model: modelId,
       prompt: finalPrompt,
@@ -564,7 +571,7 @@ export const generateSceneVideo = async (
         // Note: Providing 'durationSeconds' (even 5) causes a 400 error with Veo 3.1 currently.
         // We let the model use its default (5s).
         // durationSeconds: 5,
-        aspectRatio: aspectRatio as any
+        aspectRatio: validAspectRatio as any
       }
     });
 

@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import { fetchFile } from '@ffmpeg/util';
+import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { Scene } from '@/types';
 
@@ -21,62 +21,52 @@ export const downloadFile = async (url: string, filename: string) => {
 // Download all images as ZIP
 export const downloadImagesZip = async (scenes: Scene[], projectTitle: string) => {
   const zip = new JSZip();
-  const folder = zip.folder(`${projectTitle.replace(/[^a-z0-9]/gi, '_')}_images`);
-
-  if (!folder) throw new Error("Failed to create zip folder");
-
-  const imageScenes = scenes.filter(s => s.imageUrl);
+  const folder = zip.folder(projectTitle || 'images');
   
-  await Promise.all(imageScenes.map(async (scene, index) => {
-    try {
-      if (!scene.imageUrl) return;
-      // Handle data URIs and URLs differently
-      if (scene.imageUrl.startsWith('data:')) {
-         const base64Data = scene.imageUrl.split(',')[1];
-         folder.file(`scene_${index + 1}_${scene.id}.png`, base64Data, { base64: true });
-      } else {
-        const response = await fetch(scene.imageUrl, { mode: 'cors' });
-        if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
-        const blob = await response.blob();
-        const ext = blob.type.split('/')[1] || 'png';
-        folder.file(`scene_${index + 1}_${scene.id}.${ext}`, blob);
-      }
-    } catch (e) {
-      console.error(`Failed to download image for scene ${scene.id}`, e);
-    }
-  }));
+  const imageScenes = scenes.filter(s => s.imageUrl);
+  if (imageScenes.length === 0) return;
 
-  const content = await zip.generateAsync({ type: "blob" });
+  const promises = imageScenes.map(async (scene, i) => {
+    if (!scene.imageUrl) return;
+    try {
+      const response = await fetch(scene.imageUrl);
+      const blob = await response.blob();
+      const ext = blob.type.split('/')[1] || 'png';
+      folder?.file(`scene_${i + 1}_${scene.id}.${ext}`, blob);
+    } catch (e) {
+      console.error(`Failed to add image for scene ${scene.id}`, e);
+    }
+  });
+
+  await Promise.all(promises);
+  
+  const content = await zip.generateAsync({ type: 'blob' });
   saveAs(content, `${projectTitle.replace(/[^a-z0-9]/gi, '_')}_images.zip`);
 };
 
 // Download all videos as ZIP
 export const downloadVideosZip = async (scenes: Scene[], projectTitle: string) => {
   const zip = new JSZip();
-  const folder = zip.folder(`${projectTitle.replace(/[^a-z0-9]/gi, '_')}_videos`);
-
-  if (!folder) throw new Error("Failed to create zip folder");
-
-  const videoScenes = scenes.filter(s => s.videoUrl);
+  const folder = zip.folder(projectTitle || 'videos');
   
-  await Promise.all(videoScenes.map(async (scene, index) => {
-    try {
-      if (!scene.videoUrl) return;
-      if (scene.videoUrl.startsWith('data:')) {
-        const base64Data = scene.videoUrl.split(',')[1];
-        folder.file(`scene_${index + 1}_${scene.id}.mp4`, base64Data, { base64: true });
-      } else {
-        const response = await fetch(scene.videoUrl, { mode: 'cors' });
-         if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
-        const blob = await response.blob();
-        folder.file(`scene_${index + 1}_${scene.id}.mp4`, blob);
-      }
-    } catch (e) {
-      console.error(`Failed to download video for scene ${scene.id}`, e);
-    }
-  }));
+  const videoScenes = scenes.filter(s => s.videoUrl);
+  if (videoScenes.length === 0) return;
 
-  const content = await zip.generateAsync({ type: "blob" });
+  const promises = videoScenes.map(async (scene, i) => {
+    if (!scene.videoUrl) return;
+    try {
+      const response = await fetch(scene.videoUrl);
+      const blob = await response.blob();
+      const ext = blob.type.split('/')[1] || 'mp4';
+      folder?.file(`scene_${i + 1}_${scene.id}.${ext}`, blob);
+    } catch (e) {
+      console.error(`Failed to add video for scene ${scene.id}`, e);
+    }
+  });
+
+  await Promise.all(promises);
+  
+  const content = await zip.generateAsync({ type: 'blob' });
   saveAs(content, `${projectTitle.replace(/[^a-z0-9]/gi, '_')}_videos.zip`);
 };
 
@@ -85,8 +75,17 @@ export const stitchVideos = async (
   scenes: Scene[], 
   onProgress: (progress: number, message: string) => void
 ): Promise<Blob | null> => {
+  // Check for Cross-Origin Isolation
+  if (typeof window !== 'undefined' && !window.crossOriginIsolated) {
+      const errorMsg = "Browser is not cross-origin isolated. COOP/COEP headers required.";
+      console.error(errorMsg);
+      throw new Error(errorMsg);
+  }
+
   const videoScenes = scenes.filter(s => s.videoUrl);
-  if (videoScenes.length === 0) return null;
+  if (videoScenes.length === 0) {
+    return null;
+  }
 
   const ffmpeg = new FFmpeg();
   
@@ -95,15 +94,19 @@ export const stitchVideos = async (
     console.log('[FFmpeg]', message);
   });
   
+  // Track progress
+  ffmpeg.on('progress', ({ progress, time }) => {
+    // Progress is 0-1. Convert to 50-90 range for the stitching phase
+    onProgress(50 + (progress * 40), 'Stitching videos...');
+  });
+
     try {
     onProgress(0, 'Loading FFmpeg...');
     
-    // Use local files from public/ffmpeg to avoid CORS and Webpack blob import issues
-    const baseURL = typeof window !== 'undefined' ? window.location.origin : '';
-    
+    // Use relative paths - let the browser resolve them against the public folder
     await ffmpeg.load({
-      coreURL: `${baseURL}/ffmpeg/ffmpeg-core.js`,
-      wasmURL: `${baseURL}/ffmpeg/ffmpeg-core.wasm`,
+      coreURL: '/ffmpeg/ffmpeg-core.js',
+      wasmURL: '/ffmpeg/ffmpeg-core.wasm',
     });
 
     onProgress(10, 'Downloading clips...');
@@ -118,10 +121,11 @@ export const stitchVideos = async (
       const filename = `input${i}.mp4`;
       
       try {
+        onProgress(10 + Math.round((i / videoScenes.length) * 30), `Downloading clip ${i + 1}/${videoScenes.length}...`);
         const data = await fetchFile(scene.videoUrl);
         await ffmpeg.writeFile(filename, data);
         inputFiles.push(filename);
-      } catch (fetchError) {
+      } catch (fetchError: any) {
         console.error(`Failed to load video for scene ${scene.id}:`, fetchError);
         // Continue but skip this file? Or fail? 
         // Failing is probably safer as the output would be incomplete
@@ -141,8 +145,33 @@ export const stitchVideos = async (
 
     onProgress(50, 'Stitching videos...');
 
-    // Simple Concat (safer, faster)
-    await ffmpeg.exec(['-f', 'concat', '-safe', '0', '-i', 'list.txt', '-c', 'copy', 'output.mp4']);
+    // Attempt 1: Copy (Fast, but requires identical codecs)
+    console.log('[FFmpeg] Attempting Stream Copy...');
+    let returnCode = await ffmpeg.exec(['-f', 'concat', '-safe', '0', '-i', 'list.txt', '-c', 'copy', 'output.mp4']);
+    
+    // Attempt 2: Re-encode (Slow, but robust)
+    if (returnCode !== 0) {
+        console.warn('[FFmpeg] Stream Copy failed. Falling back to re-encoding...');
+        onProgress(50, 'Optimizing video (this may take a while)...');
+        
+        // Delete partial output if any
+        try { await ffmpeg.deleteFile('output.mp4'); } catch (e) {}
+        
+        // Re-encode with ultrafast preset for speed
+        returnCode = await ffmpeg.exec([
+            '-f', 'concat', 
+            '-safe', '0', 
+            '-i', 'list.txt', 
+            '-c:v', 'libx264', 
+            '-preset', 'ultrafast', 
+            '-c:a', 'aac', 
+            'output.mp4'
+        ]);
+    }
+
+    if (returnCode !== 0) {
+        throw new Error(`FFmpeg exited with code ${returnCode}`);
+    }
     
     onProgress(90, 'Finalizing...');
     
@@ -156,10 +185,8 @@ export const stitchVideos = async (
     onProgress(0, `Error: ${error.message || 'Stitching failed'}`);
     throw error;
   } finally {
-    // Attempt to terminate if possible, but for single-threaded it's less critical
+    // Attempt to terminate if possible
     try {
-      // ffmpeg.terminate() is not always available on the instance depending on version/setup
-      // but if it is, use it.
       // @ts-ignore
       if (ffmpeg.terminate) ffmpeg.terminate();
     } catch (e) {

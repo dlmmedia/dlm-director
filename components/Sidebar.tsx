@@ -66,6 +66,12 @@ interface SidebarProps {
 }
 
 export function Sidebar({ currentProjectId, onProjectSelect, onNewProject, onRename, refreshTrigger }: SidebarProps) {
+  // #region agent log
+  useEffect(() => {
+    fetch('http://127.0.0.1:7243/ingest/38be5295-f513-45bf-9b9a-128482a00dc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'components/Sidebar.tsx:71',message:'Sidebar mounted',data:{currentProjectId, refreshTrigger},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H_SIDEBAR'})}).catch(()=>{});
+  }, [currentProjectId, refreshTrigger]);
+  // #endregion
+
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
@@ -191,7 +197,7 @@ export function Sidebar({ currentProjectId, onProjectSelect, onNewProject, onRen
         <motion.button
           onClick={handleCreateProject}
           className={`w-full flex items-center gap-2.5 px-3 py-2.5 bg-gradient-to-r from-dlm-accent to-amber-500 text-black font-semibold rounded-xl shadow-lg shadow-dlm-accent/20 hover:shadow-dlm-accent/30 transition-shadow ${
-            collapsed ? 'justify-center' : ''
+          collapsed ? 'justify-center' : ''
           }`}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
@@ -261,6 +267,7 @@ export function Sidebar({ currentProjectId, onProjectSelect, onNewProject, onRen
                     {project.thumbnail ? (
                       <img 
                         src={project.thumbnail} 
+                        crossOrigin="anonymous"
                         alt="" 
                         className="w-full h-full object-cover"
                       />
@@ -331,7 +338,7 @@ export function Sidebar({ currentProjectId, onProjectSelect, onNewProject, onRen
                                 }}
                                 className="opacity-0 group-hover/title:opacity-100 p-1 hover:bg-white/10 rounded transition-all text-gray-500 hover:text-white"
                                 title="Rename"
-                              >
+                                >
                                 <PencilIcon />
                               </button>
                             </div>

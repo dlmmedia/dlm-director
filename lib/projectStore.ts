@@ -28,9 +28,15 @@ export async function fetchProjects(): Promise<ProjectListItem[]> {
     const response = await fetch('/api/projects');
     if (!response.ok) throw new Error('Failed to fetch projects');
     const data = await response.json();
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/38be5295-f513-45bf-9b9a-128482a00dc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/projectStore.ts:31',message:'fetchProjects response',data:{count: data.projects?.length, data},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+    // #endregion
     return data.projects || [];
   } catch (error) {
     console.error('Error fetching projects:', error);
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/38be5295-f513-45bf-9b9a-128482a00dc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/projectStore.ts:36',message:'fetchProjects error',data:{error: String(error)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+    // #endregion
     return [];
   }
 }
