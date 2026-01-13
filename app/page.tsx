@@ -128,6 +128,26 @@ export default function Home() {
     }
   };
 
+  // Restore session on mount
+  useEffect(() => {
+    try {
+      const savedId = localStorage.getItem('dlm_last_project_id');
+      if (savedId && !currentProjectId) {
+        // Use a small timeout to allow initial render
+        setTimeout(() => handleProjectSelect(savedId), 100);
+      }
+    } catch (e) {
+      console.warn('Failed to restore session:', e);
+    }
+  }, []);
+
+  // Save session
+  useEffect(() => {
+    if (currentProjectId) {
+      localStorage.setItem('dlm_last_project_id', currentProjectId);
+    }
+  }, [currentProjectId]);
+
   const handleNewProject = async () => {
     try {
       const project = await createProjectAPI('New Project');
@@ -440,12 +460,17 @@ export default function Home() {
     try {
       // Use ref to get latest scene data
       const currentScenes = configRef.current.scenes;
-      for (const scene of currentScenes) {
+      const scenesToProcess = currentScenes.filter(scene => {
         // Re-check from ref each iteration to get latest status
         const latestScene = configRef.current.scenes.find(s => s.id === scene.id);
-        if (latestScene && (latestScene.status === 'image_ready' || latestScene.imageUrl) && !latestScene.videoUrl) {
-          await handleGenerateVideo(latestScene.id);
-        }
+        return latestScene && (latestScene.status === 'image_ready' || latestScene.imageUrl) && !latestScene.videoUrl;
+      });
+
+      // Process in chunks to avoid rate limits
+      const CHUNK_SIZE = 2;
+      for (let i = 0; i < scenesToProcess.length; i += CHUNK_SIZE) {
+        const chunk = scenesToProcess.slice(i, i + CHUNK_SIZE);
+        await Promise.all(chunk.map(scene => handleGenerateVideo(scene.id)));
       }
     } catch (e) {
       setErrorMessage("Error generating all videos.");
@@ -457,12 +482,17 @@ export default function Home() {
   const generateAllImages = async () => {
     // Use ref to get latest scene data
     const currentScenes = configRef.current.scenes;
-    for (const scene of currentScenes) {
+    const scenesToProcess = currentScenes.filter(scene => {
       // Re-check from ref each iteration to get latest status
       const latestScene = configRef.current.scenes.find(s => s.id === scene.id);
-      if (latestScene && (latestScene.status === 'pending' || latestScene.status === 'error') && !latestScene.imageUrl) {
-        await handleGenerateImage(latestScene.id);
-      }
+      return latestScene && (latestScene.status === 'pending' || latestScene.status === 'error') && !latestScene.imageUrl;
+    });
+
+    // Process in chunks
+    const CHUNK_SIZE = 3;
+    for (let i = 0; i < scenesToProcess.length; i += CHUNK_SIZE) {
+       const chunk = scenesToProcess.slice(i, i + CHUNK_SIZE);
+       await Promise.all(chunk.map(scene => handleGenerateImage(scene.id)));
     }
   };
 
@@ -510,7 +540,7 @@ export default function Home() {
       />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden relative">
+      <div className="flex-1 flex flex-col overflow-hidden relative min-w-0">
         {/* Error Banner */}
         <AnimatePresence>
           {errorMessage && (

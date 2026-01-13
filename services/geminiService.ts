@@ -103,14 +103,24 @@ export const generateScript = async (
     ? `\n\nLOCATIONS:\n${config.locations.map(l => `- ${l.name}: ${l.description}, ${l.timeOfDay}, ${l.atmosphere}`).join('\n')}`
     : '';
 
+  // Build texture/lighting context
+  const cinematographyContext = `
+  CINEMATOGRAPHY SETTINGS:
+  - Camera: ${config?.defaultCamera}
+  - Lens: ${config?.defaultLens}
+  - Lighting Style: ${config?.lightingGuide?.globalStyle || 'Dynamic'}
+  - Texture Detail: ${config?.textureConfig?.skinDetail || 'Natural'}
+  `;
+
   const systemInstruction = `You are a world-class film director, cinematographer, and screenwriter combined.
-Create a professional visual script for a ${category} video.
+  Create a professional visual script for a ${category} video.
 
-VISUAL STYLE: ${stylePreset.prompt}
-${characterContext}
-${locationContext}
+  VISUAL STYLE: ${stylePreset.prompt}
+  ${cinematographyContext}
+  ${characterContext}
+  ${locationContext}
 
-Break the story into exactly ${sceneCount} distinct scenes that flow naturally together like a single cohesive film.
+  Break the story into exactly ${sceneCount} distinct scenes that flow naturally together like a single cohesive film.
 
 CRITICAL REQUIREMENTS FOR CONSISTENCY:
 1. If characters are defined, use EXACT descriptions in every scene they appear
@@ -760,20 +770,21 @@ function enhanceBasicPrompt(prompt: string, config?: ProjectConfig): string {
   const enhancements = [
     prompt,
     stylePreset.prompt,
-    '4K resolution, highly detailed, professional cinematography',
-    config?.filmGrain ? 'subtle film grain texture' : '',
-    config?.colorGrading || 'professional color grading'
+    'masterpiece, best quality, 4K resolution, highly detailed, professional cinematography, sharp focus',
+    config?.filmGrain ? 'subtle film grain texture, analog film look' : '',
+    config?.colorGrading || 'professional color grading, cinematic lighting'
   ].filter(Boolean);
 
   return enhancements.join('. ');
 }
 
 function enhanceVideoPrompt(prompt: string): string {
-  return `${prompt}. Smooth cinematic motion, professional video quality, natural movement, subtle camera motion, atmospheric lighting.`;
+  return `${prompt}. Cinematic motion, temporal consistency, smooth transition, professional video quality, high fidelity, natural movement, atmospheric lighting, 4k.`;
 }
 
 // Mapping functions for string to enum conversion
-function mapToShotType(value: string): ShotType {
+function mapToShotType(value: string | undefined | null): ShotType {
+  if (!value || typeof value !== 'string') return ShotType.MEDIUM;
   const map: Record<string, ShotType> = {
     'extreme wide shot': ShotType.EXTREME_WIDE,
     'wide': ShotType.WIDE,
@@ -802,7 +813,8 @@ function mapToShotType(value: string): ShotType {
   return map[value.toLowerCase()] || ShotType.MEDIUM;
 }
 
-function mapToCameraAngle(value: string): CameraAngle {
+function mapToCameraAngle(value: string | undefined | null): CameraAngle {
+  if (!value || typeof value !== 'string') return CameraAngle.EYE_LEVEL;
   const map: Record<string, CameraAngle> = {
     'eye-level': CameraAngle.EYE_LEVEL,
     'eye level': CameraAngle.EYE_LEVEL,
@@ -829,7 +841,8 @@ function mapToCameraAngle(value: string): CameraAngle {
   return map[value.toLowerCase()] || CameraAngle.EYE_LEVEL;
 }
 
-function mapToCameraMovement(value: string): CameraMovement {
+function mapToCameraMovement(value: string | undefined | null): CameraMovement {
+  if (!value || typeof value !== 'string') return CameraMovement.STATIC_TRIPOD;
   const map: Record<string, CameraMovement> = {
     'locked-off tripod': CameraMovement.STATIC_TRIPOD,
     'static': CameraMovement.STATIC_TRIPOD,
@@ -872,7 +885,8 @@ function mapToCameraMovement(value: string): CameraMovement {
   return map[value.toLowerCase()] || CameraMovement.STATIC_TRIPOD;
 }
 
-function mapToLightingStyle(value: string): LightingStyle {
+function mapToLightingStyle(value: string | undefined | null): LightingStyle {
+  if (!value || typeof value !== 'string') return LightingStyle.SOFT_DIFFUSED;
   const map: Record<string, LightingStyle> = {
     'high-key': LightingStyle.HIGH_KEY,
     'high key': LightingStyle.HIGH_KEY,
@@ -908,7 +922,8 @@ function mapToLightingStyle(value: string): LightingStyle {
   return map[value.toLowerCase()] || LightingStyle.SOFT_DIFFUSED;
 }
 
-function mapToLightSource(value: string): LightSource {
+function mapToLightSource(value: string | undefined | null): LightSource {
+  if (!value || typeof value !== 'string') return LightSource.DAYLIGHT;
   const map: Record<string, LightSource> = {
     'tungsten': LightSource.TUNGSTEN,
     'tungsten (warm)': LightSource.TUNGSTEN,
@@ -942,7 +957,8 @@ function mapToLightSource(value: string): LightSource {
   return map[value.toLowerCase()] || LightSource.DAYLIGHT;
 }
 
-function inferFocalLength(shotType: string): FocalLength {
+function inferFocalLength(shotType: string | undefined | null): FocalLength {
+  if (!shotType || typeof shotType !== 'string') return FocalLength.STANDARD_50;
   const lower = shotType.toLowerCase();
   if (lower.includes('extreme wide') || lower.includes('establishing')) return FocalLength.WIDE_24;
   if (lower.includes('wide')) return FocalLength.WIDE_28;
@@ -951,7 +967,8 @@ function inferFocalLength(shotType: string): FocalLength {
   return FocalLength.STANDARD_50;
 }
 
-function inferDepthOfField(shotType: string): DepthOfField {
+function inferDepthOfField(shotType: string | undefined | null): DepthOfField {
+  if (!shotType || typeof shotType !== 'string') return DepthOfField.CINEMATIC_SHALLOW;
   const lower = shotType.toLowerCase();
   if (lower.includes('extreme wide') || lower.includes('wide')) return DepthOfField.DEEP_FOCUS;
   if (lower.includes('close-up') || lower.includes('closeup')) return DepthOfField.EXTREME_SHALLOW;

@@ -104,13 +104,27 @@ export function Sidebar({ currentProjectId, onProjectSelect, onNewProject, onRen
 
   const handleRename = async (id: string) => {
     if (editingTitle.trim()) {
-      const success = await renameProject(id, editingTitle.trim());
-      if (success) {
+      const newTitle = editingTitle.trim();
+      
+      // If renaming the current project, update via parent and let auto-save handle persistence
+      // This prevents race conditions between the rename API call and auto-save
+      if (id === currentProjectId) {
         setProjects(prev => 
-          prev.map(p => p.id === id ? { ...p, title: editingTitle.trim() } : p)
+          prev.map(p => p.id === id ? { ...p, title: newTitle } : p)
         );
         if (onRename) {
-          onRename(id, editingTitle.trim());
+          onRename(id, newTitle);
+        }
+      } else {
+        // For other projects, use the direct API call
+        const success = await renameProject(id, newTitle);
+        if (success) {
+          setProjects(prev => 
+            prev.map(p => p.id === id ? { ...p, title: newTitle } : p)
+          );
+          if (onRename) {
+            onRename(id, newTitle);
+          }
         }
       }
     }

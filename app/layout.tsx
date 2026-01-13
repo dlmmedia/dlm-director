@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export const metadata: Metadata = {
   title: 'DLM Director - Elite AI Cinematic Video Agent',
@@ -18,7 +19,9 @@ export default function RootLayout({
         <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
       </head>
       <body className="bg-[#0a0a0a] text-white antialiased">
-        {children}
+        <ErrorBoundary>
+          {children}
+        </ErrorBoundary>
       </body>
     </html>
   );

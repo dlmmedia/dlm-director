@@ -34,12 +34,16 @@ export enum AspectRatio {
 // --- CAMERA SYSTEMS ---
 export enum CameraBody {
   ARRI_ALEXA_MINI = 'ARRI Alexa Mini LF',
+  ARRI_ALEXA_65 = 'ARRI Alexa 65',
   RED_KOMODO = 'RED Komodo',
   RED_V_RAPTOR = 'RED V-Raptor',
   SONY_VENICE = 'Sony Venice 2',
+  SONY_FX3 = 'Sony FX3',
   BLACKMAGIC_URSA = 'Blackmagic URSA Mini Pro',
   IMAX_LF = 'IMAX Large Format',
-  PANAVISION_DXL2 = 'Panavision DXL2'
+  IMAX_1570 = 'IMAX 15/70mm Film',
+  PANAVISION_DXL2 = 'Panavision DXL2',
+  CANON_C500 = 'Canon EOS C500 Mark II'
 }
 
 export enum LensType {
@@ -47,9 +51,12 @@ export enum LensType {
   ANAMORPHIC_2X = 'Anamorphic 2x Squeeze',
   ANAMORPHIC_1_8X = 'Anamorphic 1.8x Squeeze',
   VINTAGE_COOKE = 'Vintage Cooke Panchro',
+  VINTAGE_LOMO = 'Vintage Lomo Anamorphic',
   MODERN_ZEISS = 'Modern Zeiss Master Prime',
   PANAVISION_PRIMO = 'Panavision Primo 70',
-  LEICA_SUMMILUX = 'Leica Summilux-C'
+  LEICA_SUMMILUX = 'Leica Summilux-C',
+  HASSELBLAD_PRIME = 'Hasselblad Prime',
+  SIGMA_CINE = 'Sigma Cine High-Speed'
 }
 
 export enum FocalLength {
@@ -335,6 +342,11 @@ export interface ProjectConfig {
   defaultLens: LensType;
   defaultColorPalette: string;
   
+  // Advanced Visual Config
+  textureConfig: TextureConfig;
+  lightingGuide: LightingGuide;
+  subjectBehavior: SubjectBehavior;
+  
   // Characters & Locations
   characters: CharacterProfile[];
   locations: LocationProfile[];
@@ -387,55 +399,303 @@ export interface PromptTemplate {
   examples: string[];
 }
 
+// --- VISUAL CONFIGURATION TYPES ---
+export interface TextureConfig {
+  skinDetail: 'smooth' | 'natural' | 'highly_detailed' | 'rough';
+  skinImperfections: boolean; // pores, blemishes
+  fabricTexture: 'standard' | 'high_fidelity' | 'visible_weave';
+  environmentDetail: 'balanced' | 'high_complexity' | 'minimalist';
+  reflectiveSurfaces: boolean;
+}
+
+export interface LightingGuide {
+  globalStyle: LightingStyle;
+  preferredRatios: 'high_contrast' | 'balanced' | 'low_contrast';
+  keyLightPosition?: 'left' | 'right' | 'overhead' | 'bottom';
+  fillLightIntensity?: 'none' | 'subtle' | 'strong';
+}
+
+export interface SubjectBehavior {
+  gazeDirection: 'camera' | 'off_camera' | 'interactive' | 'variable';
+  eyeContact: boolean; // generally false for cinematic
+  movementStyle: 'natural' | 'stylized' | 'minimal' | 'dynamic';
+}
+
 // --- VISUAL STYLE PRESETS ---
-export const VISUAL_STYLE_PRESETS = [
+export interface VisualStylePreset {
+  id: string;
+  name: string;
+  prompt: string;
+  negativePrompt: string;
+  defaultCamera: CameraBody;
+  defaultLens: LensType;
+  defaultTextureConfig: TextureConfig;
+  defaultLighting: LightingGuide;
+  defaultSubjectBehavior: SubjectBehavior;
+  defaultAspectRatio: AspectRatio;
+}
+
+export const VISUAL_STYLE_PRESETS: VisualStylePreset[] = [
   {
     id: 'cinematic-realistic',
     name: 'Realistic, Cinematic Lighting, 4K',
     prompt: 'photorealistic, cinematic lighting, 4K resolution, film grain, shallow depth of field, professional color grading',
-    negativePrompt: 'cartoon, anime, illustration, drawing, painting, low quality, blurry, watermark, text overlay'
+    negativePrompt: 'cartoon, anime, illustration, drawing, painting, low quality, blurry, watermark, text overlay',
+    defaultCamera: CameraBody.ARRI_ALEXA_MINI,
+    defaultLens: LensType.ANAMORPHIC_2X,
+    defaultTextureConfig: {
+      skinDetail: 'highly_detailed',
+      skinImperfections: true,
+      fabricTexture: 'high_fidelity',
+      environmentDetail: 'balanced',
+      reflectiveSurfaces: false
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.SOFT_DIFFUSED,
+      preferredRatios: 'balanced',
+      keyLightPosition: 'right',
+      fillLightIntensity: 'subtle'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'off_camera',
+      eyeContact: false,
+      movementStyle: 'natural'
+    },
+    defaultAspectRatio: AspectRatio.CINEMA
+  },
+  {
+    id: 'cinematic-film',
+    name: 'Cinematic Film / Movie Still',
+    prompt: '35mm film still, cinematic framing, narrative atmosphere, detailed texture, authentic film grain',
+    negativePrompt: 'digital, glossy, oversharpened, artificial, studio strobe',
+    defaultCamera: CameraBody.ARRI_ALEXA_65,
+    defaultLens: LensType.VINTAGE_COOKE,
+    defaultTextureConfig: {
+      skinDetail: 'natural',
+      skinImperfections: true,
+      fabricTexture: 'visible_weave',
+      environmentDetail: 'high_complexity',
+      reflectiveSurfaces: false
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.CHIAROSCURO,
+      preferredRatios: 'high_contrast',
+      fillLightIntensity: 'subtle'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'off_camera',
+      eyeContact: false,
+      movementStyle: 'natural'
+    },
+    defaultAspectRatio: AspectRatio.CINEMA
   },
   {
     id: 'cyberpunk-neon',
     name: 'Cyberpunk, Neon, High Contrast',
     prompt: 'cyberpunk aesthetic, neon lights, rain-slicked streets, holographic elements, futuristic, high contrast, blade runner inspired',
-    negativePrompt: 'daylight, natural, pastoral, cartoon, low quality, blurry'
+    negativePrompt: 'daylight, natural, pastoral, cartoon, low quality, blurry',
+    defaultCamera: CameraBody.SONY_VENICE,
+    defaultLens: LensType.ANAMORPHIC_2X,
+    defaultTextureConfig: {
+      skinDetail: 'smooth',
+      skinImperfections: false,
+      fabricTexture: 'standard',
+      environmentDetail: 'high_complexity',
+      reflectiveSurfaces: true
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.HARD_DIRECTIONAL,
+      preferredRatios: 'high_contrast',
+      fillLightIntensity: 'none'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'variable',
+      eyeContact: true,
+      movementStyle: 'stylized'
+    },
+    defaultAspectRatio: AspectRatio.CINEMA
   },
   {
     id: 'anime-ghibli',
     name: 'Anime Style, Studio Ghibli inspired',
     prompt: 'studio ghibli style, anime, hand-painted backgrounds, soft lighting, whimsical, japanese animation aesthetic',
-    negativePrompt: 'photorealistic, 3D render, western cartoon, dark, gritty'
+    negativePrompt: 'photorealistic, 3D render, western cartoon, dark, gritty',
+    defaultCamera: CameraBody.ARRI_ALEXA_MINI, // Placeholder for anime
+    defaultLens: LensType.SPHERICAL_PRIME,
+    defaultTextureConfig: {
+      skinDetail: 'smooth',
+      skinImperfections: false,
+      fabricTexture: 'standard',
+      environmentDetail: 'balanced',
+      reflectiveSurfaces: false
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.SOFT_DIFFUSED,
+      preferredRatios: 'low_contrast',
+      fillLightIntensity: 'strong'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'variable',
+      eyeContact: true,
+      movementStyle: 'stylized'
+    },
+    defaultAspectRatio: AspectRatio.WIDESCREEN
   },
   {
     id: 'vintage-35mm',
     name: 'Vintage 35mm Film Grain',
     prompt: '35mm film photography, vintage aesthetic, film grain, warm color cast, nostalgic, kodak portra colors, slight vignette',
-    negativePrompt: 'digital, clean, modern, high definition, neon, futuristic'
+    negativePrompt: 'digital, clean, modern, high definition, neon, futuristic',
+    defaultCamera: CameraBody.ARRI_ALEXA_MINI, // Or analog equiv
+    defaultLens: LensType.VINTAGE_LOMO,
+    defaultTextureConfig: {
+      skinDetail: 'natural',
+      skinImperfections: true,
+      fabricTexture: 'visible_weave',
+      environmentDetail: 'balanced',
+      reflectiveSurfaces: false
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.MOTIVATED,
+      preferredRatios: 'balanced',
+      fillLightIntensity: 'subtle'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'off_camera',
+      eyeContact: false,
+      movementStyle: 'natural'
+    },
+    defaultAspectRatio: AspectRatio.WIDESCREEN
+  },
+  {
+    id: 'fashion-editorial',
+    name: 'Fashion / Editorial',
+    prompt: 'fashion editorial, high fashion, studio lighting, sharp focus, trendy, detailed fabric, pose',
+    negativePrompt: 'casual, candid, messy, blurry, low quality',
+    defaultCamera: CameraBody.HASSELBLAD_PRIME,
+    defaultLens: LensType.SPHERICAL_PRIME,
+    defaultTextureConfig: {
+      skinDetail: 'highly_detailed',
+      skinImperfections: false, // Retouched look
+      fabricTexture: 'high_fidelity',
+      environmentDetail: 'minimalist',
+      reflectiveSurfaces: false
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.BUTTERFLY,
+      preferredRatios: 'balanced',
+      fillLightIntensity: 'strong'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'camera',
+      eyeContact: false, // Aloof
+      movementStyle: 'stylized'
+    },
+    defaultAspectRatio: AspectRatio.PORTRAIT
   },
   {
     id: 'dark-fantasy',
     name: 'Dark Fantasy, Detailed Texture',
     prompt: 'dark fantasy, intricate details, dramatic lighting, mystical atmosphere, gothic elements, rich textures, cinematic',
-    negativePrompt: 'bright, cheerful, cartoon, simple, minimalist, modern'
+    negativePrompt: 'bright, cheerful, cartoon, simple, minimalist, modern',
+    defaultCamera: CameraBody.ARRI_ALEXA_MINI,
+    defaultLens: LensType.SPHERICAL_PRIME,
+    defaultTextureConfig: {
+      skinDetail: 'rough',
+      skinImperfections: true,
+      fabricTexture: 'high_fidelity',
+      environmentDetail: 'high_complexity',
+      reflectiveSurfaces: false
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.CHIAROSCURO,
+      preferredRatios: 'high_contrast',
+      fillLightIntensity: 'none'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'variable',
+      eyeContact: true,
+      movementStyle: 'stylized'
+    },
+    defaultAspectRatio: AspectRatio.CINEMA
   },
   {
     id: 'documentary-natural',
     name: 'Documentary, Natural Light',
     prompt: 'documentary style, natural lighting, authentic, candid moments, raw footage aesthetic, realistic colors',
-    negativePrompt: 'stylized, fantasy, neon, dramatic, artificial lighting'
+    negativePrompt: 'stylized, fantasy, neon, dramatic, artificial lighting',
+    defaultCamera: CameraBody.SONY_FX3,
+    defaultLens: LensType.SPHERICAL_PRIME,
+    defaultTextureConfig: {
+      skinDetail: 'natural',
+      skinImperfections: true,
+      fabricTexture: 'standard',
+      environmentDetail: 'balanced',
+      reflectiveSurfaces: false
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.MOTIVATED,
+      preferredRatios: 'balanced',
+      fillLightIntensity: 'subtle'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'off_camera',
+      eyeContact: false,
+      movementStyle: 'natural'
+    },
+    defaultAspectRatio: AspectRatio.WIDESCREEN
   },
   {
     id: 'music-video-stylized',
     name: 'Music Video, Stylized, Dynamic',
     prompt: 'music video aesthetic, dynamic angles, stylized color grading, dramatic lighting, performance energy, cinematic slow motion',
-    negativePrompt: 'static, documentary, muted colors, talking heads'
+    negativePrompt: 'static, documentary, muted colors, talking heads',
+    defaultCamera: CameraBody.RED_V_RAPTOR,
+    defaultLens: LensType.ANAMORPHIC_2X,
+    defaultTextureConfig: {
+      skinDetail: 'smooth',
+      skinImperfections: false,
+      fabricTexture: 'standard',
+      environmentDetail: 'high_complexity',
+      reflectiveSurfaces: true
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.HARD_DIRECTIONAL,
+      preferredRatios: 'high_contrast',
+      fillLightIntensity: 'none'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'camera',
+      eyeContact: true,
+      movementStyle: 'dynamic'
+    },
+    defaultAspectRatio: AspectRatio.CINEMA
   },
   {
     id: 'commercial-clean',
     name: 'Commercial, Clean, Premium',
     prompt: 'commercial photography, clean aesthetic, premium look, perfect lighting, product shot quality, aspirational',
-    negativePrompt: 'grungy, dark, dramatic, vintage, film grain, low budget'
+    negativePrompt: 'grungy, dark, dramatic, vintage, film grain, low budget',
+    defaultCamera: CameraBody.ARRI_ALEXA_MINI,
+    defaultLens: LensType.SPHERICAL_PRIME,
+    defaultTextureConfig: {
+      skinDetail: 'smooth',
+      skinImperfections: false,
+      fabricTexture: 'high_fidelity',
+      environmentDetail: 'minimalist',
+      reflectiveSurfaces: true
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.HIGH_KEY,
+      preferredRatios: 'low_contrast',
+      fillLightIntensity: 'strong'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'camera',
+      eyeContact: true,
+      movementStyle: 'minimal'
+    },
+    defaultAspectRatio: AspectRatio.WIDESCREEN
   }
 ];
 
@@ -494,21 +754,25 @@ export function createDefaultScene(id: number): Scene {
 }
 
 export function createDefaultConfig(): ProjectConfig {
+  const defaultPreset = VISUAL_STYLE_PRESETS[0];
   return {
     title: '',
     category: VideoCategory.CINEMATIC,
     aspectRatio: AspectRatio.WIDESCREEN,
-    style: 'cinematic-realistic',
+    style: defaultPreset.id,
     userPrompt: '',
     scenes: [],
-    defaultCamera: CameraBody.ARRI_ALEXA_MINI,
-    defaultLens: LensType.SPHERICAL_PRIME,
+    defaultCamera: defaultPreset.defaultCamera,
+    defaultLens: defaultPreset.defaultLens,
     defaultColorPalette: 'teal-orange',
+    textureConfig: defaultPreset.defaultTextureConfig,
+    lightingGuide: defaultPreset.defaultLighting,
+    subjectBehavior: defaultPreset.defaultSubjectBehavior,
     characters: [],
     locations: [],
     globalReferenceImages: [],
-    globalStyle: 'photorealistic, cinematic lighting, 4K resolution, film grain, shallow depth of field',
-    negativePrompt: 'cartoon, anime, illustration, low quality, blurry, watermark, text overlay, deformed, ugly, bad anatomy',
+    globalStyle: defaultPreset.prompt,
+    negativePrompt: defaultPreset.negativePrompt,
     colorGrading: 'professional cinematic color grading',
     filmGrain: true,
     voiceoverEnabled: false,

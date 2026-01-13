@@ -145,6 +145,50 @@ const DOF_PROMPTS: Record<DepthOfField, string> = {
 };
 
 /**
+ * Build texture instructions based on configuration
+ */
+function buildTexturePromptSegment(config: ProjectConfig): string {
+  const { textureConfig } = config;
+  if (!textureConfig) return '';
+
+  const parts = [];
+  
+  // Skin
+  if (textureConfig.skinDetail === 'highly_detailed') parts.push('hyper-realistic skin texture, visible pores, subsurface scattering');
+  if (textureConfig.skinDetail === 'rough') parts.push('weathered skin texture, rugged features, unpolished');
+  if (textureConfig.skinImperfections) parts.push('natural skin imperfections, realistic blemishes');
+  if (textureConfig.skinDetail === 'smooth') parts.push('smooth skin texture, retouched look');
+
+  // Fabric
+  if (textureConfig.fabricTexture === 'high_fidelity') parts.push('intricate fabric details, high fidelity material texture');
+  if (textureConfig.fabricTexture === 'visible_weave') parts.push('visible fabric weave, tactile texture');
+
+  // Environment
+  if (textureConfig.environmentDetail === 'high_complexity') parts.push('rich environmental details, clutter, lived-in feel');
+  if (textureConfig.environmentDetail === 'minimalist') parts.push('clean composition, minimalist environment, uncluttered');
+  
+  if (textureConfig.reflectiveSurfaces) parts.push('accurate ray-traced reflections, wet surfaces');
+
+  return parts.join(', ');
+}
+
+/**
+ * Build subject behavior instructions
+ */
+function buildSubjectBehaviorSegment(config: ProjectConfig): string {
+  const { subjectBehavior } = config;
+  if (!subjectBehavior) return '';
+
+  const parts = [];
+  
+  if (subjectBehavior.gazeDirection === 'off_camera') parts.push('looking away from camera, candid gaze');
+  if (subjectBehavior.gazeDirection === 'camera') parts.push('looking directly at camera, breaking fourth wall');
+  if (!subjectBehavior.eyeContact) parts.push('no eye contact');
+  
+  return parts.join(', ');
+}
+
+/**
  * Build a fully structured, consistency-optimized prompt
  */
 export function buildEnhancedPrompt(
@@ -182,21 +226,25 @@ export function buildEnhancedPrompt(
       ANGLE_PROMPTS[scene.cameraAngle],
       LENS_PROMPTS[scene.focalLength],
       DOF_PROMPTS[scene.depthOfField],
-      !forVideo ? '' : MOVEMENT_PROMPTS[scene.cameraMovement]
+      !forVideo ? '' : (scene.cameraMovement ? MOVEMENT_PROMPTS[scene.cameraMovement] : ''),
+      config?.defaultCamera ? `shot on ${config.defaultCamera}` : '',
+      config?.defaultLens ? `${config.defaultLens} lens` : ''
     ].filter(Boolean).join(', '),
     lighting: [
       LIGHTING_PROMPTS[scene.lightingStyle],
       LIGHT_SOURCE_PROMPTS[scene.lightSource],
-      `${palette.description}, color palette with ${palette.primary} and ${palette.secondary} tones`
-    ].join(', '),
+      `${palette.description}, color palette with ${palette.primary} and ${palette.secondary} tones`,
+      config?.lightingGuide ? `${config.lightingGuide.preferredRatios} contrast ratio` : ''
+    ].filter(Boolean).join(', '),
     quality: [
       '4K resolution',
       'photorealistic',
       'highly detailed',
       'professional cinematography',
       config.filmGrain ? 'subtle film grain' : '',
-      'realistic skin texture',
-      'accurate anatomy'
+      'accurate anatomy',
+      buildTexturePromptSegment(config),
+      buildSubjectBehaviorSegment(config)
     ].filter(Boolean).join(', '),
     constraints: ''
   };
@@ -277,10 +325,10 @@ export function buildVideoMotionPrompt(
   return `Cinematic Video. ${basePrompt}. 
   
   VISUAL STYLE: ${config.style}.
-  CAMERA: ${movement}, ${angle}.
+  CAMERA: ${movement}, ${angle}, shot on ${config.defaultCamera}.
   MOTION: ${motionDescriptors.join('. ')}.
   
-  High quality, smooth motion, professional color grading.`;
+  High quality, smooth motion, temporal consistency, professional color grading, high fidelity, 4k.`;
 }
 
 /**
@@ -419,14 +467,20 @@ export function generateConsistencySignature(config: ProjectConfig): string {
   }
   
   // Camera consistency
-  parts.push(`Shot on ${config.defaultCamera}`);
-  parts.push(`${config.defaultLens} lens`);
+  if (config?.defaultCamera) parts.push(`Shot on ${config.defaultCamera}`);
+  if (config?.defaultLens) parts.push(`${config.defaultLens} lens`);
+  
+  // Texture consistency
+  const texturePrompt = buildTexturePromptSegment(config);
+  if (texturePrompt) parts.push(texturePrompt);
   
   // Technical consistency
-  if (config.filmGrain) {
+  if (config?.filmGrain) {
     parts.push('subtle film grain texture');
   }
-  parts.push(config.colorGrading);
+  if (config?.colorGrading) {
+    parts.push(config.colorGrading);
+  }
   
   return parts.join(', ');
 }
