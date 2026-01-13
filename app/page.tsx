@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { AnimatePresence } from 'framer-motion';
+import Image from 'next/image';
 import { 
   ProjectConfig, 
   Scene, 
@@ -28,7 +29,8 @@ import {
   debouncedSave,
   saveProject,
   uploadSceneImage,
-  uploadSceneVideo
+  uploadSceneVideo,
+  cancelPendingSave
 } from '@/lib/projectStore';
 import { SaveIcon, UserIcon, LoadingSpinner } from '@/components/Icons';
 
@@ -39,12 +41,6 @@ import ScriptReviewStep from '@/components/steps/ScriptReviewStep';
 import ProductionStep from '@/components/steps/ProductionStep';
 
 export default function Home() {
-  // #region agent log
-  useEffect(() => {
-    fetch('http://127.0.0.1:7243/ingest/38be5295-f513-45bf-9b9a-128482a00dc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/page.tsx:43',message:'Home component mounted',data:{},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H_PAGE'})}).catch(()=>{});
-  }, []);
-  // #endregion
-
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [config, setConfig] = useState<ProjectConfig>(createDefaultConfig());
@@ -157,25 +153,6 @@ export default function Home() {
     }
   };
 
-  // Restore session on mount
-  useEffect(() => {
-    try {
-      const savedId = localStorage.getItem('dlm_last_project_id');
-      if (savedId && !currentProjectId) {
-        // Use a small timeout to allow initial render
-        setTimeout(() => handleProjectSelect(savedId), 100);
-      }
-    } catch (e) {
-      console.warn('Failed to restore session:', e);
-    }
-  }, []);
-
-  // Save session
-  useEffect(() => {
-    if (currentProjectId) {
-      localStorage.setItem('dlm_last_project_id', currentProjectId);
-    }
-  }, [currentProjectId]);
 
   const handleNewProject = async () => {
     try {
@@ -195,6 +172,35 @@ export default function Home() {
     }
   };
 
+  const ensureProjectExists = async () => {
+    if (currentProjectId) return currentProjectId;
+
+    try {
+      // Create project with current title or default
+      const title = config.title || 'New Project';
+      const project = await createProjectAPI(title);
+      
+      if (project) {
+        console.log('Auto-created new project:', project.id);
+        setCurrentProjectId(project.id);
+        
+        // Ensure config has the correct title
+        const newConfig = { ...config, title: project.title };
+        setConfig(newConfig);
+        
+        // Save immediately
+        await saveProject(project.id, newConfig);
+        lastSavedConfigRef.current = JSON.stringify(newConfig);
+        
+        return project.id;
+      }
+    } catch (e) {
+      console.error("Failed to auto-create project:", e);
+      setErrorMessage("Failed to create project automatically.");
+    }
+    return null;
+  };
+
   const handleFetchTrending = async () => {
     setResearchLoading(true);
     setErrorMessage(null);
@@ -211,24 +217,56 @@ export default function Home() {
 
   const handleExtractEntities = async () => {
     if (!config.userPrompt) return;
+    
+    console.log("🚀 Extract Entities button clicked");
     setExtractingEntities(true);
     setErrorMessage(null);
-    
+
     try {
-      const [characters, locations] = await Promise.all([
-        extractCharactersFromPrompt(config.userPrompt),
-        extractLocationsFromPrompt(config.userPrompt)
-      ]);
-      
-      setConfig(prev => ({
-        ...prev,
-        characters: [...prev.characters, ...characters],
-        locations: [...prev.locations, ...locations]
-      }));
+        // Ensure project exists before starting work
+        console.log("📂 Ensuring project exists...");
+        const projectId = await ensureProjectExists();
+        console.log("📂 Project ID:", projectId);
+        
+        if (!projectId) {
+            console.error("❌ Failed to ensure project exists");
+            setErrorMessage("Failed to create/save project.");
+            return;
+        }
+    
+        console.log("🧠 calling extractCharactersFromPrompt and extractLocationsFromPrompt...");
+        const [characters, locations] = await Promise.all([
+            extractCharactersFromPrompt(config.userPrompt).catch(err => {
+                console.error("❌ extractCharactersFromPrompt failed:", err);
+                return [];
+            }),
+            extractLocationsFromPrompt(config.userPrompt).catch(err => {
+                console.error("❌ extractLocationsFromPrompt failed:", err);
+                return [];
+            })
+        ]);
+        
+        console.log(`✅ Extraction complete. Characters: ${characters.length}, Locations: ${locations.length}`);
+        
+        setConfig(prev => {
+            const newConfig = {
+            ...prev,
+            characters: [...prev.characters, ...characters],
+            locations: [...prev.locations, ...locations]
+            };
+            
+            // Save extraction results
+            if (projectId) {
+                saveProject(projectId, newConfig).catch(console.error);
+            }
+            
+            return newConfig;
+        });
     } catch (e) {
       setErrorMessage("Entity extraction failed.");
       console.error("Entity extraction failed:", e);
     } finally {
+      console.log("🏁 Extraction process finished, resetting loading state.");
       setExtractingEntities(false);
     }
   };
@@ -236,32 +274,46 @@ export default function Home() {
   const handleGenerateScript = async (sceneCount: number = 5) => {
     const currentConfig = config;
     if (!currentConfig.userPrompt) return;
+
+    console.log("🚀 Generate Script requested");
     setLoadingScript(true);
     setErrorMessage(null);
+
     try {
-      const scenes = await generateScript(
-        currentConfig.category, 
-        currentConfig.style, 
-        currentConfig.userPrompt,
-        currentConfig,
-        sceneCount
-      );
-      setConfig(prev => {
-        const newConfig = { ...prev, scenes };
-        // Immediately save to ensure script is persisted
-        if (currentProjectId) {
-          saveProject(currentProjectId, newConfig).then(() => {
-            console.log('✅ Project saved with generated script');
-            lastSavedConfigRef.current = JSON.stringify(newConfig);
-          });
+        // Ensure project exists before generation
+        const projectId = await ensureProjectExists();
+        if (!projectId) {
+            console.error("❌ Failed to ensure project exists for script generation");
+            setErrorMessage("Failed to create/save project.");
+            return;
         }
-        return newConfig;
-      });
-      setStep(2); // Auto-advance
+
+        console.log("🧠 calling generateScript...");
+        const scenes = await generateScript(
+            currentConfig.category, 
+            currentConfig.style, 
+            currentConfig.userPrompt,
+            currentConfig,
+            sceneCount
+        );
+        console.log(`✅ Script generated with ${scenes.length} scenes`);
+        setConfig(prev => {
+            const newConfig = { ...prev, scenes };
+            // Immediately save to ensure script is persisted
+            if (projectId) {
+            saveProject(projectId, newConfig).then(() => {
+                console.log('✅ Project saved with generated script');
+                lastSavedConfigRef.current = JSON.stringify(newConfig);
+            });
+            }
+            return newConfig;
+        });
+        setStep(2); // Auto-advance
     } catch (e) {
       setErrorMessage("Failed to generate script. Please try again.");
-      console.error(e);
+      console.error("Script generation error:", e);
     } finally {
+      console.log("🏁 Script generation process finished.");
       setLoadingScript(false);
     }
   };
@@ -530,12 +582,29 @@ export default function Home() {
       generateAllImages();
   };
 
-  const handleRenameProject = useCallback((id: string, newTitle: string) => {
+  const handleRenameProject = useCallback(async (id: string, newTitle: string) => {
     // If the renamed project is the current one, update local config title
     if (id === currentProjectId) {
-      setConfig(prev => ({ ...prev, title: newTitle }));
+      const newConfig = { ...config, title: newTitle };
+      setConfig(newConfig);
+      
+      // Force immediate save to persist the new name
+      // This bypasses the debounce logic which might revert the name if it triggers late
+      cancelPendingSave();
+      setSaveStatus('saving');
+      
+      try {
+        await saveProject(id, newConfig);
+        lastSavedConfigRef.current = JSON.stringify(newConfig);
+        lastSyncedTitleRef.current = newTitle;
+        setSaveStatus('saved');
+        console.log('✅ Project renamed and saved immediately:', newTitle);
+      } catch (e) {
+        console.error('Failed to save renamed project:', e);
+        setSaveStatus('unsaved');
+      }
     }
-  }, [currentProjectId]);
+  }, [currentProjectId, config]);
 
   const handleStepClick = (newStep: number) => {
     // Only allow navigating to steps that have data ready
@@ -584,16 +653,22 @@ export default function Home() {
 
         {/* Header */}
         <header className="border-b border-white/10 bg-[#0a0a0a]/95 backdrop-blur-xl sticky top-0 z-40">
-          <div className="px-6 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-dlm-accent via-amber-500 to-yellow-600 rounded-xl flex items-center justify-center text-black font-bold text-lg shadow-lg shadow-dlm-accent/20">
-                D
+          <div className="px-6 h-20 flex items-center justify-between">
+            <button 
+              onClick={() => setStep(0)}
+              className="flex items-center gap-4 hover:opacity-80 transition-opacity focus:outline-none"
+              aria-label="Go to Home"
+            >
+              <div className="relative h-16 w-64">
+                <Image 
+                  src="/logo.png" 
+                  alt="DLM Director" 
+                  fill 
+                  className="object-contain object-left"
+                  priority
+                />
               </div>
-              <div>
-                <span className="font-semibold tracking-tight text-lg text-white">DLM Director</span>
-                <span className="text-[10px] text-dlm-accent ml-2 font-semibold tracking-widest uppercase">Advanced</span>
-              </div>
-            </div>
+            </button>
             
             <div className="flex items-center gap-6">
               {/* Save Status */}

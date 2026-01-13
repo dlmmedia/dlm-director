@@ -27,7 +27,16 @@ export async function fetchProjects(): Promise<ProjectListItem[]> {
   try {
     const response = await fetch('/api/projects');
     if (!response.ok) throw new Error('Failed to fetch projects');
-    const data = await response.json();
+    
+    let data;
+    try {
+      const text = await response.text();
+      data = text ? JSON.parse(text) : { projects: [] };
+    } catch (e) {
+      console.warn('Failed to parse projects response:', e);
+      data = { projects: [] };
+    }
+
     // #region agent log
     fetch('http://127.0.0.1:7243/ingest/38be5295-f513-45bf-9b9a-128482a00dc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/projectStore.ts:31',message:'fetchProjects response',data:{count: data.projects?.length, data},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
     // #endregion
@@ -45,7 +54,9 @@ export async function fetchProject(id: string): Promise<SavedProject | null> {
   try {
     const response = await fetch(`/api/projects/${id}`);
     if (!response.ok) return null;
-    return await response.json();
+    
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
   } catch (error) {
     console.error('Error fetching project:', error);
     return null;
@@ -110,6 +121,17 @@ export async function renameProject(id: string, title: string): Promise<boolean>
   }
 }
 
+// Helper for timeouts
+const withTimeout = <T>(promise: Promise<T>, ms: number, errorMsg: string): Promise<T> => {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(errorMsg)), ms);
+    promise.then(
+      (val) => { clearTimeout(timer); resolve(val); },
+      (err) => { clearTimeout(timer); reject(err); }
+    );
+  });
+};
+
 // --- ASSET UPLOAD ---
 
 export async function uploadSceneImage(
@@ -118,7 +140,8 @@ export async function uploadSceneImage(
   imageData: string
 ): Promise<string | null> {
   try {
-    const response = await fetch('/api/upload', {
+    console.log(`📤 Uploading image for scene ${sceneId} to Blob...`);
+    const response = await withTimeout(fetch('/api/upload', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -127,7 +150,8 @@ export async function uploadSceneImage(
         type: 'image',
         data: imageData,
       }),
-    });
+    }), 30000, "Image upload timed out"); // 30s timeout
+
     if (!response.ok) throw new Error('Failed to upload image');
     const result = await response.json();
     return result.url;
@@ -143,16 +167,18 @@ export async function uploadSceneVideo(
   videoBlob: Blob
 ): Promise<string | null> {
   try {
+    console.log(`📤 Uploading video for scene ${sceneId} to Blob...`);
     const formData = new FormData();
     formData.append('file', videoBlob, `scene-${sceneId}.mp4`);
     formData.append('projectId', projectId);
     formData.append('sceneId', sceneId.toString());
     formData.append('type', 'video');
 
-    const response = await fetch('/api/upload', {
+    const response = await withTimeout(fetch('/api/upload', {
       method: 'POST',
       body: formData,
-    });
+    }), 60000, "Video upload timed out"); // 60s timeout for video
+
     if (!response.ok) throw new Error('Failed to upload video');
     const result = await response.json();
     return result.url;

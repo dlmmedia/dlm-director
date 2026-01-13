@@ -68,7 +68,7 @@ export default function ConfigStep({
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-6 py-8 space-y-8">
+    <div className="w-full px-4 md:px-12 py-8 space-y-8">
       <div>
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-3xl font-light text-white">Project Configuration</h2>

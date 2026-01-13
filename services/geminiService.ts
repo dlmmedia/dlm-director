@@ -34,7 +34,7 @@ import {
 } from "./promptBuilder";
 
 // API Key from environment variables (configure in Vercel dashboard or .env.local)
-const API_KEY = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
+const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.API_KEY || '';
 
 // Helper to get AI instance
 const getAi = () => {
@@ -45,6 +45,17 @@ const getAi = () => {
     throw new Error("GEMINI_API_KEY is not set");
   }
   return new GoogleGenAI({ apiKey: trimmedKey });
+};
+
+// Helper for timeouts
+const withTimeout = <T>(promise: Promise<T>, ms: number, errorMsg: string): Promise<T> => {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(errorMsg)), ms);
+    promise.then(
+      (val) => { clearTimeout(timer); resolve(val); },
+      (err) => { clearTimeout(timer); reject(err); }
+    );
+  });
 };
 
 // --- 1. RESEARCH / TRENDING ---
@@ -70,8 +81,18 @@ export const fetchTrendingTopics = async (category: VideoCategory): Promise<any[
     });
 
     if (response.text) {
-      const cleanText = response.text.replace(/```json/g, "").replace(/```/g, "");
-      return JSON.parse(cleanText);
+      let cleanText = typeof response.text === 'function' ? response.text() : response.text;
+      if (!cleanText) return [];
+      
+      cleanText = cleanText.replace(/```json/g, "").replace(/```/g, "").trim();
+      if (!cleanText) return [];
+      
+      try {
+        return JSON.parse(cleanText);
+      } catch (e) {
+        console.error("Failed to parse trending topics JSON:", e);
+        return [];
+      }
     }
     return [];
   } catch (error) {
@@ -88,6 +109,7 @@ export const generateScript = async (
   config?: Partial<ProjectConfig>,
   sceneCount: number = 5
 ): Promise<Scene[]> => {
+  console.log('🎬 Starting script generation...');
   const ai = getAi();
 
   // Get style preset for context
@@ -154,7 +176,8 @@ FILM GRAMMAR RULES TO FOLLOW:
 - Match lighting continuity across scenes`;
 
   try {
-    const response = await ai.models.generateContent({
+    console.log('📤 Sending prompt to Gemini for script generation...');
+    const response = await withTimeout(ai.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: prompt,
       config: {
@@ -178,13 +201,23 @@ FILM GRAMMAR RULES TO FOLLOW:
           }
         }
       }
-    });
+    }), 60000, "Script generation timed out");
 
-    let rawText = response.text || '[]';
+    console.log('📥 Received response from Gemini for script');
+    let rawText = (typeof response.text === 'function' ? response.text() : response.text) || '[]';
+    
     // Remove markdown code blocks if present (Gemini often wraps JSON in ```json ... ```)
-    rawText = rawText.replace(/```json/g, "").replace(/```/g, "");
+    rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
 
-    const data = JSON.parse(rawText);
+    if (!rawText) rawText = '[]';
+
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch (e) {
+      console.error("Failed to parse script JSON:", e);
+      throw new Error("Received invalid JSON from script generator");
+    }
 
     // Enrich with IDs, status, and map string values to enums
     return data.map((item: any, index: number) => {
@@ -216,10 +249,12 @@ FILM GRAMMAR RULES TO FOLLOW:
 
 // --- 3. CHARACTER EXTRACTION ---
 export const extractCharactersFromPrompt = async (prompt: string): Promise<CharacterProfile[]> => {
+  console.log('🔍 Starting character extraction...');
   const ai = getAi();
 
   try {
-    const response = await ai.models.generateContent({
+    console.log('📤 Sending prompt to Gemini for characters...');
+    const response = await withTimeout(ai.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: `Analyze this video concept and extract any characters mentioned. For each character, provide detailed visual descriptions that can be used to maintain consistency across AI-generated images.
 
@@ -251,27 +286,31 @@ Extract characters with extremely specific visual details. If details aren't spe
           }
         }
       }
-    });
+    }), 30000, "Character extraction timed out");
 
+    console.log('📥 Received response from Gemini for characters');
     let cleanText = response.text || '[]';
     cleanText = cleanText.replace(/```json/g, "").replace(/```/g, "");
     const data = JSON.parse(cleanText);
+    console.log(`✅ Extracted ${data.length} characters`);
     return data.map((char: any, idx: number) => ({
       ...char,
       id: `char-${idx + 1}-${Date.now()}`
     }));
   } catch (error) {
-    console.error("Character extraction error:", error);
+    console.error("❌ Character extraction error:", error);
     return [];
   }
 };
 
 // --- 4. LOCATION EXTRACTION ---
 export const extractLocationsFromPrompt = async (prompt: string): Promise<LocationProfile[]> => {
+  console.log('🔍 Starting location extraction...');
   const ai = getAi();
 
   try {
-    const response = await ai.models.generateContent({
+    console.log('📤 Sending prompt to Gemini for locations...');
+    const response = await withTimeout(ai.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: `Analyze this video concept and extract any locations/settings mentioned. For each location, provide detailed visual descriptions for AI image generation consistency.
 
@@ -299,17 +338,19 @@ Extract locations with specific environmental details.`,
           }
         }
       }
-    });
+    }), 30000, "Location extraction timed out");
 
+    console.log('📥 Received response from Gemini for locations');
     let cleanText = response.text || '[]';
     cleanText = cleanText.replace(/```json/g, "").replace(/```/g, "");
     const data = JSON.parse(cleanText);
+    console.log(`✅ Extracted ${data.length} locations`);
     return data.map((loc: any, idx: number) => ({
       ...loc,
       id: `loc-${idx + 1}-${Date.now()}`
     }));
   } catch (error) {
-    console.error("Location extraction error:", error);
+    console.error("❌ Location extraction error:", error);
     return [];
   }
 };
@@ -334,6 +375,7 @@ export const generateSceneImage = async (
   }
 
   console.log('🎬 Generating image with enhanced prompt:', finalPrompt.substring(0, 200) + '...');
+  console.log(`📐 Image Aspect Ratio: ${aspectRatio}`);
 
   // Prepare reference images if any
   // @ts-ignore
@@ -405,15 +447,18 @@ export const generateSceneImage = async (
       });
     }
 
-    const response = await ai.models.generateContent({
+    console.log(`📤 Sending image generation request to Gemini (Nano Banana Pro)...`);
+    const response = await withTimeout(ai.models.generateContent({
       model: 'nano-banana-pro-preview',
       contents: [{ role: 'user', parts: contentParts }],
       config: {
         responseModalities: ['IMAGE'],
         // @ts-ignore
-        aspectRatio: aspectRatio
+        aspectRatio: aspectRatio === '9:16' ? '9:16' : (aspectRatio || '16:9')
       }
-    });
+    }), 45000, "Image generation timed out"); // 45s timeout
+
+    console.log('📥 Received response from Gemini for image');
 
     // Parse generateContent response
     const candidate = response.candidates?.[0];

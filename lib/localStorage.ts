@@ -30,6 +30,9 @@ export async function getProjectsIndex(): Promise<ProjectsIndex> {
     }
     // #endregion
     const data = await fs.readFile(PROJECTS_INDEX_PATH, 'utf-8');
+    if (!data || !data.trim()) {
+      return { projects: [], lastUpdated: new Date().toISOString() };
+    }
     return JSON.parse(data);
   } catch {
     return { projects: [], lastUpdated: new Date().toISOString() };
@@ -74,6 +77,7 @@ export async function getProject(projectId: string): Promise<any | null> {
   try {
     const projectPath = path.join(DATA_DIR, 'projects', projectId, 'data.json');
     const data = await fs.readFile(projectPath, 'utf-8');
+    if (!data || !data.trim()) return null;
     return JSON.parse(data);
   } catch {
     return null;

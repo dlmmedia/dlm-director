@@ -34,7 +34,7 @@ export default function ScriptReviewStep({
   const totalDuration = config.scenes.reduce((acc, s) => acc + s.durationEstimate, 0);
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-6 py-8 space-y-8">
+    <div className="w-full px-4 md:px-12 py-8 space-y-8">
       <div>
         <div className="flex justify-between items-start flex-wrap gap-4">
           <div>
@@ -82,26 +82,31 @@ export default function ScriptReviewStep({
       {activeTab === 'scenes' ? (
         <div className="space-y-4">
           {config.scenes.map((scene, idx) => (
-            <div key={scene.id} className="card-elevated overflow-hidden">
+            <div key={scene.id} className="card-elevated overflow-hidden group hover:border-white/20 transition-all duration-300">
               {/* Scene Header */}
               <div 
-                className="flex items-start gap-4 p-5 cursor-pointer hover:bg-white/5 transition-colors"
+                className="flex items-start gap-5 p-5 cursor-pointer hover:bg-white/5 transition-colors"
                 onClick={() => setExpandedScene(expandedScene === scene.id ? null : scene.id)}
               >
-                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-dlm-accent/30 to-amber-500/20 flex items-center justify-center text-dlm-accent font-bold text-sm shrink-0">
-                  {idx + 1}
+                {/* Scene Slate */}
+                <div className="w-14 h-14 bg-black/40 border border-white/10 rounded flex flex-col items-center justify-center shrink-0 font-mono">
+                    <span className="text-[10px] text-gray-500 uppercase tracking-wider">SCENE</span>
+                    <span className="text-xl font-bold text-dlm-accent">{idx + 1}</span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <span className="text-[10px] px-2 py-1 rounded-md bg-white/10 text-gray-400 font-medium">{scene.shotType}</span>
-                    <span className="text-[10px] px-2 py-1 rounded-md bg-white/10 text-gray-400 font-medium">{scene.cameraAngle}</span>
-                    <span className="text-[10px] px-2 py-1 rounded-md bg-white/10 text-gray-400 font-medium">{scene.cameraMovement}</span>
+
+                <div className="flex-1 min-w-0 pt-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <span className="text-[10px] px-2 py-1 rounded bg-white/5 border border-white/10 text-gray-400 font-mono tracking-wide uppercase">{scene.shotType}</span>
+                    <span className="text-[10px] px-2 py-1 rounded bg-white/5 border border-white/10 text-gray-400 font-mono tracking-wide uppercase">{scene.cameraAngle}</span>
+                    <span className="text-[10px] px-2 py-1 rounded bg-white/5 border border-white/10 text-gray-400 font-mono tracking-wide uppercase">{scene.cameraMovement}</span>
                   </div>
-                  <p className="text-gray-300 text-sm line-clamp-2">{scene.narration}</p>
+                  <p className="text-gray-200 text-sm line-clamp-2 font-medium leading-relaxed">{scene.narration}</p>
                 </div>
-                <div className="text-right shrink-0 flex flex-col items-end gap-2">
-                  <span className="text-sm text-dlm-accent font-semibold">{scene.durationEstimate}s</span>
-                  <div className={`text-gray-500 transition-transform ${expandedScene === scene.id ? 'rotate-180' : ''}`}>
+                <div className="text-right shrink-0 flex flex-col items-end gap-3 pt-1">
+                  <div className="flex items-center gap-2 font-mono text-xs text-dlm-accent bg-dlm-accent/10 px-2 py-1 rounded border border-dlm-accent/20">
+                     <span>{scene.durationEstimate}s</span>
+                  </div>
+                  <div className={`text-gray-500 transition-transform duration-300 ${expandedScene === scene.id ? 'rotate-180 text-white' : ''}`}>
                     <ChevronDownIcon />
                   </div>
                 </div>
@@ -109,21 +114,21 @@ export default function ScriptReviewStep({
 
               {/* Expanded Content */}
               {expandedScene === scene.id && (
-                <div className="border-t border-white/10 p-5 space-y-5">
+                <div className="border-t border-white/10 bg-black/20 p-6 space-y-6 animate-in fade-in slide-in-from-top-2">
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-dlm-accent mb-2">Visual Prompt</label>
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-dlm-accent mb-3">Visual Prompt</label>
                     <textarea 
                       value={scene.visualPrompt}
                       onChange={(e) => onUpdateScene(scene.id, { visualPrompt: e.target.value })}
-                      className="input resize-none"
+                      className="input resize-none bg-black/40 border-white/10 font-mono text-sm leading-relaxed"
                       rows={4}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-blue-400 mb-3">Cinematography</label>
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-4">Cinematography</label>
                     <ShotPresets onApply={(preset) => onUpdateScene(scene.id, preset)} />
-                    <div className="mt-4">
+                    <div className="mt-5 p-4 rounded-xl border border-white/5 bg-white/5">
                       <CinematographyControls
                         scene={scene}
                         onChange={(updates) => onUpdateScene(scene.id, updates)}

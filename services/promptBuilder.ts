@@ -154,22 +154,23 @@ function buildTexturePromptSegment(config: ProjectConfig): string {
   const parts = [];
   
   // Skin
-  if (textureConfig.skinDetail === 'highly_detailed') parts.push('hyper-realistic skin texture, visible pores, subsurface scattering');
-  if (textureConfig.skinDetail === 'rough') parts.push('weathered skin texture, rugged features, unpolished');
-  if (textureConfig.skinImperfections) parts.push('natural skin imperfections, realistic blemishes');
-  if (textureConfig.skinDetail === 'smooth') parts.push('smooth skin texture, retouched look');
+  if (textureConfig.skinDetail === 'highly_detailed') parts.push('highly detailed skin texture with visible pores and subsurface scattering');
+  if (textureConfig.skinDetail === 'rough') parts.push('weathered and rough skin texture with realistic imperfections');
+  if (textureConfig.skinImperfections) parts.push('natural skin imperfections and realistic blemishes');
+  if (textureConfig.skinDetail === 'smooth') parts.push('smooth and retouched skin texture');
 
   // Fabric
-  if (textureConfig.fabricTexture === 'high_fidelity') parts.push('intricate fabric details, high fidelity material texture');
-  if (textureConfig.fabricTexture === 'visible_weave') parts.push('visible fabric weave, tactile texture');
+  if (textureConfig.fabricTexture === 'high_fidelity') parts.push('high fidelity fabric materials with intricate thread details');
+  if (textureConfig.fabricTexture === 'visible_weave') parts.push('tactile fabric texture with visible weave patterns');
 
   // Environment
-  if (textureConfig.environmentDetail === 'high_complexity') parts.push('rich environmental details, clutter, lived-in feel');
-  if (textureConfig.environmentDetail === 'minimalist') parts.push('clean composition, minimalist environment, uncluttered');
+  if (textureConfig.environmentDetail === 'high_complexity') parts.push('rich environmental textures with lived-in details and clutter');
+  if (textureConfig.environmentDetail === 'minimalist') parts.push('clean and minimalist environmental textures');
   
-  if (textureConfig.reflectiveSurfaces) parts.push('accurate ray-traced reflections, wet surfaces');
+  if (textureConfig.reflectiveSurfaces) parts.push('accurate ray-traced reflections on wet or glossy surfaces');
 
-  return parts.join(', ');
+  if (parts.length === 0) return '';
+  return `MATERIALS AND TEXTURES: ${parts.join(', ')}`;
 }
 
 /**
@@ -222,13 +223,13 @@ export function buildEnhancedPrompt(
     setting: locationDesc || extractSetting(scene.visualPrompt),
     style: stylePreset.prompt,
     composition: [
+      `CINEMATOGRAPHY: shot on ${config?.defaultCamera || 'professional cinema camera'}`,
+      config?.defaultLens ? `using ${config.defaultLens} lens` : '',
       SHOT_TYPE_PROMPTS[scene.shotType],
       ANGLE_PROMPTS[scene.cameraAngle],
       LENS_PROMPTS[scene.focalLength],
       DOF_PROMPTS[scene.depthOfField],
       !forVideo ? '' : (scene.cameraMovement ? MOVEMENT_PROMPTS[scene.cameraMovement] : ''),
-      config?.defaultCamera ? `shot on ${config.defaultCamera}` : '',
-      config?.defaultLens ? `${config.defaultLens} lens` : ''
     ].filter(Boolean).join(', '),
     lighting: [
       LIGHTING_PROMPTS[scene.lightingStyle],
@@ -237,10 +238,10 @@ export function buildEnhancedPrompt(
       config?.lightingGuide ? `${config.lightingGuide.preferredRatios} contrast ratio` : ''
     ].filter(Boolean).join(', '),
     quality: [
-      '4K resolution',
+      '8k resolution', // Bumped up for emphasis
       'photorealistic',
       'highly detailed',
-      'professional cinematography',
+      'professional color grading',
       config.filmGrain ? 'subtle film grain' : '',
       'accurate anatomy',
       buildTexturePromptSegment(config),
@@ -249,15 +250,25 @@ export function buildEnhancedPrompt(
     constraints: ''
   };
   
-  // Assemble the prompt in optimal order
+  // Assemble the prompt in optimal order for Imagen 3 / Nano Banana Pro
+  // Priority: Subject > Composition/Camera > Lighting > Style > Details
   const promptParts = [
+    // 1. Core Subject & Action (What)
     components.subject,
     components.action,
-    components.setting,
+    
+    // 2. Technical Specification (How - Camera/Lens) - Moved UP for priority
     components.composition,
+    
+    // 3. Materials & Textures (Details) - Moved UP for priority
+    components.quality, // Contains the texture segment
+    
+    // 4. Environment & Lighting (Where/Mood)
+    components.setting,
     components.lighting,
+    
+    // 5. Overall Style (Vibe)
     components.style,
-    components.quality
   ].filter(Boolean);
   
   let prompt = promptParts.join('. ');

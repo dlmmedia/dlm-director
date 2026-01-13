@@ -53,7 +53,8 @@ async function blobGetProjectsIndex(): Promise<ProjectsIndex> {
       try {
         const response = await fetch(`${baseUrl}/${PROJECTS_INDEX_PATH}`, { cache: 'no-store' });
         if (response.ok) {
-          return await response.json() as ProjectsIndex;
+          const text = await response.text();
+          return text ? JSON.parse(text) as ProjectsIndex : { projects: [], lastUpdated: new Date().toISOString() };
         }
       } catch (e) {
         // Fallback to list if direct fetch fails (e.g. if we guessed wrong or file doesn't exist yet)
@@ -76,7 +77,8 @@ async function blobGetProjectsIndex(): Promise<ProjectsIndex> {
     }
 
     const response = await fetch(indexBlob.url, { cache: 'no-store' });
-    return await response.json() as ProjectsIndex;
+    const text = await response.text();
+    return text ? JSON.parse(text) as ProjectsIndex : { projects: [], lastUpdated: new Date().toISOString() };
   } catch (error) {
     console.error('Error fetching projects index from Blob:', error);
     return { projects: [], lastUpdated: new Date().toISOString() };
@@ -145,10 +147,11 @@ async function blobGetProject(projectId: string): Promise<any | null> {
     if (baseUrl) {
         const url = `${baseUrl}/${projectPath}`;
         try {
-            const response = await fetch(url, { cache: 'no-store' });
-            if (response.ok) {
-                return await response.json();
-            } else if (response.status === 404) {
+        const response = await fetch(url, { cache: 'no-store' });
+        if (response.ok) {
+            const text = await response.text();
+            return text ? JSON.parse(text) : null;
+        } else if (response.status === 404) {
                 // Might be legacy project with random suffix, fall through to list
             }
         } catch (e) {
@@ -164,7 +167,8 @@ async function blobGetProject(projectId: string): Promise<any | null> {
     }
 
     const response = await fetch(blobs[0].url, { cache: 'no-store' });
-    return await response.json();
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
   } catch (error) {
     console.error('Error fetching project from Blob:', error);
     return null;

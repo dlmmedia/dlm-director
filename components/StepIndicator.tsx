@@ -22,8 +22,19 @@ const CheckIcon = () => (
 );
 
 export const StepIndicator: React.FC<Props> = ({ currentStep, onStepClick }) => {
+  // #region agent log
+  React.useEffect(() => {
+    const el = document.getElementById('step-indicator-wrapper');
+    if (el) {
+       const rect = el.getBoundingClientRect();
+       const style = window.getComputedStyle(el);
+       fetch('http://127.0.0.1:7243/ingest/38be5295-f513-45bf-9b9a-128482a00dc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'components/StepIndicator.tsx:26',message:'StepIndicator dimensions',data:{width: rect.width, maxWidth: style.maxWidth, paddingLeft: style.paddingLeft, paddingRight: style.paddingRight, screenWidth: window.innerWidth},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+    }
+  }, []);
+  // #endregion
+
   return (
-    <div className="w-full max-w-6xl mx-auto px-6">
+    <div id="step-indicator-wrapper" className="w-full px-6 md:px-12">
       <div className="flex items-center justify-between relative">
         {/* Background line */}
         <div className="absolute top-5 left-0 right-0 h-[2px] bg-white/10" />

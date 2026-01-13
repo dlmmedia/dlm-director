@@ -20,24 +20,36 @@ apiKey = apiKey.replace(/\\n/g, '');
 const API_KEY = apiKey || process.env.GEMINI_API_KEY || '';
 
 async function testGenerateImages() {
-    console.log("Testing generateImages with Nano Banana Pro...");
+    console.log("Testing generateContent (Image) with Nano Banana Pro...");
     const ai = new GoogleGenAI({ apiKey: API_KEY });
 
     try {
-        const response = await ai.models.generateImages({
+        const response = await ai.models.generateContent({
             model: 'nano-banana-pro-preview',
-            prompt: 'A futuristic city with flying cars, cinematic lighting',
+            contents: [{ role: 'user', parts: [{ text: 'A futuristic city with flying cars, cinematic lighting' }] }],
             config: {
-                numberOfImages: 1
+                responseModalities: ['IMAGE'],
+                // @ts-ignore
+                aspectRatio: '16:9'
             }
         });
 
         console.log("Response received!");
-        console.log(JSON.stringify(response, null, 2));
+        // console.log(JSON.stringify(response, null, 2));
+
+        const candidate = response.candidates?.[0];
+        const imagePart = candidate?.content?.parts?.[0];
+        
+        if (imagePart?.inlineData?.data) {
+            console.log("SUCCESS: Image data found.");
+            console.log("MimeType:", imagePart.inlineData.mimeType);
+            console.log("Data length:", imagePart.inlineData.data.length);
+        } else {
+            console.error("FAILURE: No image data found.");
+        }
 
     } catch (error: any) {
         console.error("ERROR GENERATING IMAGES:");
-        // Print full error structure
         if (error.response) {
             console.error("Status:", error.response.status);
             console.error("Body:", await error.response.text());

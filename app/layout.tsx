@@ -12,22 +12,6 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // #region agent log
-  // This is a server component so we can't use hooks, but we can log execution
-  try {
-    const fs = require('fs');
-    const logPath = '/Users/shaji/dlm-director-new/.cursor/debug.log';
-    const logEntry = JSON.stringify({
-        location: 'app/layout.tsx:16',
-        message: 'RootLayout rendering',
-        timestamp: Date.now(),
-        sessionId: 'debug-session',
-        hypothesisId: 'H_LAYOUT'
-    }) + '\n';
-    fs.appendFileSync(logPath, logEntry);
-  } catch (e) {}
-  // #endregion
-
   return (
     <html lang="en">
       <head>

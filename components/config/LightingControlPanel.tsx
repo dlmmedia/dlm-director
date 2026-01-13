@@ -20,20 +20,20 @@ export const LightingControlPanel: React.FC<LightingControlPanelProps> = ({ conf
   };
 
   return (
-     <div className="card-elevated p-6 space-y-6">
+     <div className="card-elevated p-6 space-y-6 border-l-2 border-l-dlm-accent/50">
        <h3 className="text-lg font-medium text-white flex items-center gap-2">
           Global Lighting System
        </h3>
        
        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-             <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
+             <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400">
                 Base Style
              </label>
              <select
                 value={config.lightingGuide.globalStyle}
                 onChange={(e) => updateLighting('globalStyle', e.target.value)}
-                className="input select w-full"
+                className="input select w-full font-mono text-xs bg-black/40 border-white/10"
              >
                 {Object.values(LightingStyle).map(s => (
                     <option key={s} value={s}>{s}</option>
@@ -42,13 +42,13 @@ export const LightingControlPanel: React.FC<LightingControlPanelProps> = ({ conf
           </div>
 
           <div className="space-y-2">
-             <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
+             <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400">
                 Contrast Ratio
              </label>
              <select
                 value={config.lightingGuide.preferredRatios}
                 onChange={(e) => updateLighting('preferredRatios', e.target.value)}
-                className="input select w-full"
+                className="input select w-full font-mono text-xs bg-black/40 border-white/10"
              >
                 <option value="low_contrast">Low Contrast (Flat/Even)</option>
                 <option value="balanced">Balanced</option>
@@ -57,13 +57,13 @@ export const LightingControlPanel: React.FC<LightingControlPanelProps> = ({ conf
           </div>
 
            <div className="space-y-2">
-             <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500">
+             <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400">
                 Key Light Position
              </label>
              <select
                 value={config.lightingGuide.keyLightPosition || 'right'}
                 onChange={(e) => updateLighting('keyLightPosition', e.target.value)}
-                className="input select w-full"
+                className="input select w-full font-mono text-xs bg-black/40 border-white/10"
              >
                 <option value="left">Left</option>
                 <option value="right">Right</option>

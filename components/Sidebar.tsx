@@ -66,12 +66,6 @@ interface SidebarProps {
 }
 
 export function Sidebar({ currentProjectId, onProjectSelect, onNewProject, onRename, refreshTrigger }: SidebarProps) {
-  // #region agent log
-  useEffect(() => {
-    fetch('http://127.0.0.1:7243/ingest/38be5295-f513-45bf-9b9a-128482a00dc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'components/Sidebar.tsx:71',message:'Sidebar mounted',data:{currentProjectId, refreshTrigger},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H_SIDEBAR'})}).catch(()=>{});
-  }, [currentProjectId, refreshTrigger]);
-  // #endregion
-
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
@@ -166,15 +160,12 @@ export function Sidebar({ currentProjectId, onProjectSelect, onNewProject, onRen
         <AnimatePresence mode="wait">
           {!collapsed && (
             <motion.div 
-              className="flex items-center gap-3"
+              className="flex items-center gap-3 overflow-hidden"
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
               transition={{ duration: 0.2 }}
             >
-              <div className="w-9 h-9 bg-gradient-to-br from-dlm-accent via-amber-500 to-yellow-600 rounded-xl flex items-center justify-center text-black shadow-lg shadow-dlm-accent/20">
-                <span className="font-bold text-sm">D</span>
-              </div>
               <div className="flex flex-col">
                 <span className="font-medium text-sm tracking-tight text-white">Projects</span>
                 <span className="text-[10px] text-gray-500">{projects.length} total</span>
@@ -396,19 +387,8 @@ export function Sidebar({ currentProjectId, onProjectSelect, onNewProject, onRen
             exit={{ opacity: 0 }}
           >
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-dlm-accent/20 to-amber-500/20 flex items-center justify-center text-dlm-accent">
-                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none">
-                    <path 
-                      d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" 
-                      stroke="currentColor" 
-                      strokeWidth="2" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
-                <span className="text-[10px] text-gray-500 font-medium tracking-wide">DLM Director</span>
+              <div className="flex items-center gap-2 opacity-50">
+                 <img src="/logo.png" alt="DLM" className="h-4 w-auto" />
               </div>
               <span className="text-[9px] text-gray-600 font-mono">v2.0</span>
             </div>
