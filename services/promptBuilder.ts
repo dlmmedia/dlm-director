@@ -362,7 +362,7 @@ export function generateShotSequence(
           visualPrompt: `Scene ${i + 1} based on ${concept}`,
           shotType: ShotType.MEDIUM,
           cameraAngle: CameraAngle.EYE_LEVEL,
-          cameraMovement: CameraMovement.STATIC,
+          cameraMovement: CameraMovement.STATIC_TRIPOD,
           lightingStyle: LightingStyle.SOFT_DIFFUSED,
           lightSource: LightSource.DAYLIGHT,
           focalLength: FocalLength.STANDARD_35,
