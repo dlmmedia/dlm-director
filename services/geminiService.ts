@@ -200,11 +200,12 @@ export const generateSceneVideo = async (
     const referenceImages = [];
     if (scene?.referenceImages && scene.referenceImages.length > 0) {
         console.log(`[GeminiService] Using ${scene.referenceImages.length} reference images`);
-        for (const refUrl of scene.referenceImages) {
+        for (const refImage of scene.referenceImages) {
             try {
                 // Fetch only if it's a URL, otherwise parse base64
                 let refBytes = '';
-                let refMime = 'image/png';
+                let refMime = refImage.mimeType || 'image/png';
+                const refUrl = refImage.url;
                 
                 if (refUrl.startsWith('data:')) {
                     refBytes = refUrl.split(',')[1];
