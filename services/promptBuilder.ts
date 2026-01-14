@@ -175,14 +175,19 @@ function buildSubjectBehaviorSegment(config: ProjectConfig): string {
   const { subjectBehavior } = config;
   if (!subjectBehavior) return '';
 
-  const parts = [];
+  const parts: string[] = [];
   
-  if (subjectBehavior.eyeContact === 'camera') parts.push('subject making direct eye contact with camera');
-  if (subjectBehavior.eyeContact === 'away') parts.push('subject looking away from camera');
+  // Eye contact
+  if (subjectBehavior.eyeContact) parts.push('subject making direct eye contact with camera');
   
-  if (subjectBehavior.microExpressions) parts.push('subtle micro-expressions and realistic facial movements');
-  if (subjectBehavior.movementQuality === 'dynamic') parts.push('dynamic and energetic body language');
-  if (subjectBehavior.movementQuality === 'subtle') parts.push('subtle and restrained body language');
+  // Gaze direction
+  if (subjectBehavior.gazeDirection === 'off_camera') parts.push('subject looking away from camera');
+  if (subjectBehavior.gazeDirection === 'interactive') parts.push('subject interacting with scene elements');
+  
+  // Movement style
+  if (subjectBehavior.movementStyle === 'dynamic') parts.push('dynamic and energetic body language');
+  if (subjectBehavior.movementStyle === 'minimal') parts.push('subtle and restrained body language');
+  if (subjectBehavior.movementStyle === 'natural') parts.push('natural, authentic body language');
 
   
   return parts.join(', ');
