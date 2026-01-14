@@ -39,7 +39,7 @@ export const VideoGenerationSettings: React.FC<VideoGenerationSettingsProps> = (
         <div className="w-32">
            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Aspect Ratio</label>
            <select 
-              value={config.aspectRatio || AspectRatio.RATIO_16_9}
+              value={config.aspectRatio || AspectRatio.WIDESCREEN}
               onChange={(e) => onUpdateConfig({ aspectRatio: e.target.value as AspectRatio })}
               className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm"
             >
