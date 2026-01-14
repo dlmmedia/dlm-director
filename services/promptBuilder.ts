@@ -51,23 +51,26 @@ export interface PromptComponents {
 const SHOT_TYPE_PROMPTS: Record<ShotType, string> = {
   [ShotType.EXTREME_WIDE]: 'extreme wide shot, panoramic view showing vast environment',
   [ShotType.WIDE]: 'wide shot, establishing the scene and context',
-  [ShotType.FULL_SHOT]: 'full body shot, showing character from head to toe',
   [ShotType.MEDIUM_WIDE]: 'medium wide shot (cowboy shot), from knees up',
   [ShotType.MEDIUM]: 'medium shot, from waist up, focus on interaction',
-  [ShotType.MEDIUM_CLOSE_UP]: 'medium close-up, chest up, focus on expression',
+  [ShotType.MEDIUM_CLOSE]: 'medium close-up, chest up, focus on expression',
   [ShotType.CLOSE_UP]: 'close-up shot, focus on face and emotion',
-  [ShotType.EXTREME_CLOSE_UP]: 'extreme close-up, macro detail, intense focus'
+  [ShotType.EXTREME_CLOSE]: 'extreme close-up, macro detail, intense focus',
+  [ShotType.INSERT]: 'insert shot, detailed view of specific object or action',
+  [ShotType.CUTAWAY]: 'cutaway shot, showing related but separate action',
+  [ShotType.TWO_SHOT]: 'two-shot, framing two subjects together',
+  [ShotType.GROUP]: 'group shot, multiple subjects in frame'
 };
 
 const ANGLE_PROMPTS: Record<CameraAngle, string> = {
   [CameraAngle.EYE_LEVEL]: 'eye-level angle, neutral perspective',
   [CameraAngle.HIGH_ANGLE]: 'high angle shot, looking down, vulnerable subject',
   [CameraAngle.LOW_ANGLE]: 'low angle shot, looking up, powerful subject',
-  [CameraAngle.DUTCH_ANGLE]: 'dutch angle, tilted horizon, dynamic tension',
+  [CameraAngle.DUTCH_TILT]: 'dutch angle, tilted horizon, dynamic tension',
   [CameraAngle.OVER_SHOULDER]: 'over-the-shoulder shot, subjective perspective',
-  [CameraAngle.BIRD_EYE]: 'birds-eye view, top-down perspective',
-  [CameraAngle.WORM_EYE]: 'worms-eye view, ground level perspective',
-  [CameraAngle.POINT_OF_VIEW]: 'POV shot, first-person perspective'
+  [CameraAngle.BIRDS_EYE]: 'birds-eye view, top-down perspective',
+  [CameraAngle.WORMS_EYE]: 'worms-eye view, ground level perspective',
+  [CameraAngle.POV]: 'POV shot, first-person perspective'
 };
 
 const MOVEMENT_PROMPTS: Record<CameraMovement, string> = {
