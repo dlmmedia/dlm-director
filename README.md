@@ -48,5 +48,5 @@ AI-powered film direction with character consistency, professional cinematograph
 - 👥 Character consistency across scenes
 - 🎨 Visual style presets
 - 📹 AI-powered video generation with Veo
-- 🖼️ Image generation with Imagen 3
+- 🖼️ Image generation with Nano Banana Pro (latest Gemini image model)
 - 💾 Project persistence with Vercel Blob

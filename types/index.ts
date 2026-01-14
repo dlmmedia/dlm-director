@@ -738,7 +738,7 @@ export function createDefaultScene(id: number): Scene {
     id,
     narration: '',
     visualPrompt: '',
-    durationEstimate: 4,
+    durationEstimate: 10,
     status: 'pending',
     shotType: ShotType.MEDIUM,
     cameraAngle: CameraAngle.EYE_LEVEL,

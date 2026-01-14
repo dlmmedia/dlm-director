@@ -331,7 +331,7 @@ export const CinematographyControls: React.FC<Props> = ({ scene, onChange, compa
             min={2}
             max={10}
             value={scene.durationEstimate}
-            onChange={(e) => onChange({ durationEstimate: parseInt(e.target.value) || 4 })}
+            onChange={(e) => onChange({ durationEstimate: parseInt(e.target.value) || 10 })}
             className="flex-1 h-2 bg-white/[0.05] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-dlm-accent [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg"
           />
           <span className="text-sm font-mono text-dlm-accent font-semibold w-12 text-right">

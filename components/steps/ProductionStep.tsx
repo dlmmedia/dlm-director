@@ -30,6 +30,7 @@ interface ProductionStepProps {
   onGenerateImage: (sceneId: number) => void;
   onGenerateVideo: (sceneId: number) => void;
   onExtendVideo?: (sceneId: number) => void;
+  onCancelGeneration?: (sceneId: number) => void;
 }
 
 export default function ProductionStep({
@@ -40,7 +41,8 @@ export default function ProductionStep({
   onShowPlayer,
   onGenerateImage,
   onGenerateVideo,
-  onExtendVideo
+  onExtendVideo,
+  onCancelGeneration
 }: ProductionStepProps) {
   
   const [stitching, setStitching] = useState(false);
@@ -423,24 +425,36 @@ export default function ProductionStep({
               
               {/* Action Buttons */}
               <div className="mt-auto pt-4 flex gap-3">
-                <button 
-                  onClick={() => onGenerateImage(scene.id)}
-                  disabled={scene.status === 'generating_image'}
-                  className="flex-1 py-3 text-xs font-bold uppercase tracking-wide border border-white/10 text-gray-400 hover:text-white hover:border-white/20 hover:bg-white/5 rounded-xl transition-all disabled:opacity-50"
-                >
-                  {scene.imageUrl ? 'Regen Image' : 'Gen Image'}
-                </button>
-                  <div className="flex-1 flex gap-2">
-                    {/* Stuck State Reset */}
-                    {scene.status === 'generating_video' && (
-                       <button
-                        onClick={() => handleUpdateScene(scene.id, { status: scene.videoUrl ? 'video_ready' : 'image_ready' })}
-                        className="px-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl border border-red-500/10 transition-colors"
-                        title="Reset Status (if stuck)"
-                      >
-                        <XIcon />
-                      </button>
-                    )}
+                <div className="flex-1 flex gap-2">
+                  {/* Cancel Image Generation Button */}
+                  {scene.status === 'generating_image' && onCancelGeneration && (
+                    <button
+                      onClick={() => onCancelGeneration(scene.id)}
+                      className="px-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl border border-red-500/10 transition-colors"
+                      title="Cancel Image Generation"
+                    >
+                      <XIcon />
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => onGenerateImage(scene.id)}
+                    disabled={scene.status === 'generating_image'}
+                    className="flex-1 py-3 text-xs font-bold uppercase tracking-wide border border-white/10 text-gray-400 hover:text-white hover:border-white/20 hover:bg-white/5 rounded-xl transition-all disabled:opacity-50"
+                  >
+                    {scene.status === 'generating_image' ? 'Generating...' : (scene.imageUrl ? 'Regen Image' : 'Gen Image')}
+                  </button>
+                </div>
+                <div className="flex-1 flex gap-2">
+                  {/* Cancel Video Generation Button */}
+                  {scene.status === 'generating_video' && onCancelGeneration && (
+                     <button
+                      onClick={() => onCancelGeneration(scene.id)}
+                      className="px-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl border border-red-500/10 transition-colors"
+                      title="Cancel Video Generation"
+                    >
+                      <XIcon />
+                    </button>
+                  )}
                    <button 
                     onClick={() => onGenerateVideo(scene.id)}
                     disabled={!scene.imageUrl || (scene.status === 'generating_video' && !scene.videoUrl)}

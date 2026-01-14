@@ -1,5 +1,5 @@
 import React from 'react';
-import { ProjectConfig, VideoModel, AspectRatio, ReferenceImage, Scene } from '@/types';
+import { ProjectConfig, VideoModel, AspectRatio, Scene } from '@/types';
 import { ModelSelector } from '@/components/ModelSelector';
 import { ReferenceImagePicker } from '@/components/ReferenceImagePicker';
 
@@ -17,7 +17,7 @@ export const VideoGenerationSettings: React.FC<VideoGenerationSettingsProps> = (
   onUpdateConfig
 }) => {
   const handleUpdateFrameAnchor = (type: 'first' | 'last', url?: string) => {
-    const newAnchoring = { ...scene.frameAnchoring };
+    const newAnchoring = { ...(scene.frameAnchoring || {}) };
     if (type === 'first') {
       newAnchoring.firstFrameUrl = url;
     } else {
@@ -32,20 +32,31 @@ export const VideoGenerationSettings: React.FC<VideoGenerationSettingsProps> = (
         <div className="flex-1">
           <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Video Model</label>
           <ModelSelector 
-            currentModel={config.videoModel} 
+            currentModel={config.videoModel || VideoModel.VEO_3_1} 
             onSelect={(model) => onUpdateConfig({ videoModel: model })} 
           />
         </div>
         <div className="w-32">
            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Aspect Ratio</label>
            <select 
-              value={config.aspectRatio}
+              value={config.aspectRatio || AspectRatio.RATIO_16_9}
               onChange={(e) => onUpdateConfig({ aspectRatio: e.target.value as AspectRatio })}
               className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm"
             >
               {Object.values(AspectRatio).map(r => <option key={r} value={r}>{r}</option>)}
             </select>
         </div>
+      </div>
+
+       {/* Audio Toggle (Explicit) */}
+      <div className="flex items-center gap-3 border border-white/10 rounded-xl p-3 bg-white/5">
+         <div 
+           className={`w-10 h-6 rounded-full relative cursor-pointer transition-colors ${config.audioEnabled ? 'bg-dlm-accent' : 'bg-white/20'}`}
+           onClick={() => onUpdateConfig({ audioEnabled: !config.audioEnabled })}
+         >
+            <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${config.audioEnabled ? 'translate-x-4' : ''}`} />
+         </div>
+         <span className="text-sm text-gray-300">Generate Audio (Veo)</span>
       </div>
 
       {/* Reference Images (Ingredients) */}
