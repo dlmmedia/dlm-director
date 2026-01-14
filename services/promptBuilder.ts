@@ -73,46 +73,63 @@ const ANGLE_PROMPTS: Record<CameraAngle, string> = {
   [CameraAngle.POV]: 'POV shot, first-person perspective'
 };
 
-const MOVEMENT_PROMPTS: Record<CameraMovement, string> = {
+const MOVEMENT_PROMPTS: Partial<Record<CameraMovement, string>> = {
   [CameraMovement.STATIC_TRIPOD]: 'static tripod shot, stable composition',
-  [CameraMovement.PAN]: 'smooth pan camera movement',
-  [CameraMovement.TILT]: 'camera tilting movement',
+  [CameraMovement.SLOW_PUSH_IN]: 'slow push in, creeping towards subject',
+  [CameraMovement.SLOW_PULL_OUT]: 'slow pull out, revealing context',
+  [CameraMovement.PAN_LEFT]: 'smooth pan left camera movement',
+  [CameraMovement.PAN_RIGHT]: 'smooth pan right camera movement',
+  [CameraMovement.TILT_UP]: 'camera tilting up movement',
+  [CameraMovement.TILT_DOWN]: 'camera tilting down movement',
   [CameraMovement.DOLLY_IN]: 'slow dolly in, pushing towards subject',
   [CameraMovement.DOLLY_OUT]: 'slow dolly out, revealing context',
   [CameraMovement.TRACKING]: 'tracking shot, following the subject',
-  [CameraMovement.CRANE]: 'crane shot, sweeping camera movement',
-  [CameraMovement.HANDHELD]: 'handheld camera motion, organic shake, verite style'
+  [CameraMovement.CRANE_UP]: 'crane up shot, sweeping camera movement',
+  [CameraMovement.CRANE_DOWN]: 'crane down shot, descending camera',
+  [CameraMovement.HANDHELD]: 'handheld camera motion, organic shake, verite style',
+  [CameraMovement.STEADICAM]: 'steadicam float, smooth gliding motion',
+  [CameraMovement.ORBIT]: 'orbit shot, 360 degree rotation around subject',
+  [CameraMovement.PARALLAX]: 'parallax movement, lateral motion',
+  [CameraMovement.WHIP_PAN]: 'whip pan, fast horizontal movement'
 };
 
-const LIGHTING_PROMPTS: Record<LightingStyle, string> = {
-  [LightingStyle.NATURAL]: 'natural lighting, realistic illumination',
-  [LightingStyle.CINEMATIC]: 'cinematic lighting, dramatic contrast, rim light',
+const LIGHTING_PROMPTS: Partial<Record<LightingStyle, string>> = {
   [LightingStyle.HIGH_KEY]: 'high key lighting, bright, low contrast',
   [LightingStyle.LOW_KEY]: 'low key lighting, dark shadows, high contrast, noir',
-  [LightingStyle.STUDIO]: 'studio lighting, professional 3-point setup',
-  [LightingStyle.HARD]: 'hard lighting, sharp shadows, dramatic',
-  [LightingStyle.SOFT]: 'soft lighting, diffused shadows, flattering',
-  [LightingStyle.VOLUMETRIC]: 'volumetric lighting, god rays, atmospheric haze'
+  [LightingStyle.CHIAROSCURO]: 'chiaroscuro lighting, strong contrast',
+  [LightingStyle.SOFT_DIFFUSED]: 'soft diffused lighting, flattering',
+  [LightingStyle.HARD_DIRECTIONAL]: 'hard directional lighting, sharp shadows',
+  [LightingStyle.PRACTICAL]: 'practical lights visible in scene',
+  [LightingStyle.RIM_LIGHT]: 'rim lighting, edge lighting, backlit',
+  [LightingStyle.MOTIVATED]: 'motivated lighting from scene sources',
+  [LightingStyle.SILHOUETTE]: 'silhouette lighting, subject in shadow',
+  [LightingStyle.SPLIT_LIGHT]: 'split lighting, half face illuminated',
+  [LightingStyle.REMBRANDT]: 'rembrandt lighting, classic portrait',
+  [LightingStyle.BUTTERFLY]: 'butterfly lighting, glamorous'
 };
 
-const LIGHT_SOURCE_PROMPTS: Record<LightSource, string> = {
-  [LightSource.SUNLIGHT]: 'illuminated by sunlight',
+const LIGHT_SOURCE_PROMPTS: Partial<Record<LightSource, string>> = {
+  [LightSource.TUNGSTEN]: 'illuminated by warm tungsten light',
+  [LightSource.DAYLIGHT]: 'illuminated by natural daylight',
+  [LightSource.GOLDEN_HOUR]: 'illuminated by golden hour sunlight',
+  [LightSource.BLUE_HOUR]: 'illuminated by blue hour light',
   [LightSource.MOONLIGHT]: 'illuminated by moonlight',
   [LightSource.CANDLE_FIRE]: 'illuminated by candlelight and fire',
   [LightSource.NEON]: 'illuminated by neon lights, cyberpunk',
-  [LightSource.STREETLIGHTS]: 'illuminated by streetlights',
-  [LightSource.PRACTICALS]: 'illuminated by practical lamps',
-  [LightSource.WINDOW_LIGHT]: 'illuminated by window light'
+  [LightSource.OVERCAST]: 'illuminated by soft overcast light',
+  [LightSource.MIXED]: 'illuminated by mixed light sources'
 };
 
-const LENS_PROMPTS: Record<FocalLength, string> = {
-  [FocalLength.WIDE_14MM]: '14mm wide angle lens, expansive view',
-  [FocalLength.WIDE_24MM]: '24mm wide angle lens, context rich',
-  [FocalLength.STANDARD_35MM]: '35mm lens, classic cinematic look',
-  [FocalLength.STANDARD_50MM]: '50mm prime lens, natural perspective',
-  [FocalLength.PORTRAIT_85MM]: '85mm portrait lens, flattering compression',
-  [FocalLength.TELEPHOTO_135MM]: '135mm telephoto lens, background compression',
-  [FocalLength.TELEPHOTO_200MM]: '200mm telephoto lens, subject isolation'
+const LENS_PROMPTS: Partial<Record<FocalLength, string>> = {
+  [FocalLength.ULTRA_WIDE_14]: '14mm ultra wide angle lens, expansive view',
+  [FocalLength.ULTRA_WIDE_18]: '18mm ultra wide angle lens',
+  [FocalLength.WIDE_24]: '24mm wide angle lens, context rich',
+  [FocalLength.WIDE_28]: '28mm wide angle lens',
+  [FocalLength.STANDARD_35]: '35mm lens, classic cinematic look',
+  [FocalLength.STANDARD_50]: '50mm prime lens, natural perspective',
+  [FocalLength.PORTRAIT_85]: '85mm portrait lens, flattering compression',
+  [FocalLength.TELEPHOTO_135]: '135mm telephoto lens, background compression',
+  [FocalLength.TELEPHOTO_200]: '200mm telephoto lens, subject isolation'
 };
 
 const DOF_PROMPTS: Record<DepthOfField, string> = {
