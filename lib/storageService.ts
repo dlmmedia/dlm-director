@@ -5,7 +5,7 @@
 
 import { put, del } from '@vercel/blob';
 import { nanoid } from 'nanoid';
-import { pool } from './db';
+import { getPool } from './db';
 import { ProjectMetadata, ProjectsIndex, Scene } from '@/types';
 
 // Re-export types
@@ -17,7 +17,7 @@ const USE_BLOB = !!process.env.BLOB_READ_WRITE_TOKEN;
 
 export async function getProjectsIndex(): Promise<ProjectsIndex> {
   try {
-    const client = await pool.connect();
+    const client = await getPool().connect();
     try {
       const result = await client.query(`
         SELECT id, title, updated_at, thumbnail 
@@ -50,7 +50,7 @@ export async function createProject(title: string, initialData?: any): Promise<P
   const id = nanoid(10);
   const now = new Date();
   
-  const client = await pool.connect();
+  const client = await getPool().connect();
   try {
     await client.query('BEGIN');
 
@@ -96,7 +96,7 @@ export async function createProject(title: string, initialData?: any): Promise<P
 }
 
 export async function getProject(projectId: string): Promise<any | null> {
-  const client = await pool.connect();
+  const client = await getPool().connect();
   try {
     // Fetch project
     const projectRes = await client.query('SELECT * FROM projects WHERE id = $1', [projectId]);
@@ -161,7 +161,7 @@ export async function getProject(projectId: string): Promise<any | null> {
 }
 
 export async function saveProject(projectId: string, data: any): Promise<string> {
-  const client = await pool.connect();
+  const client = await getPool().connect();
   try {
     await client.query('BEGIN');
     const now = new Date();
@@ -234,7 +234,7 @@ export async function saveProject(projectId: string, data: any): Promise<string>
 }
 
 export async function deleteProject(projectId: string): Promise<boolean> {
-  const client = await pool.connect();
+  const client = await getPool().connect();
   try {
     await client.query('BEGIN');
 
@@ -322,7 +322,7 @@ export async function uploadVideo(
 }
 
 export async function deleteAsset(url: string): Promise<boolean> {
-  const client = await pool.connect();
+  const client = await getPool().connect();
   try {
     await client.query('DELETE FROM assets WHERE url = $1', [url]);
     await del(url);
@@ -339,7 +339,7 @@ export async function updateProjectThumbnail(
   projectId: string,
   imageUrl: string
 ): Promise<void> {
-  const client = await pool.connect();
+  const client = await getPool().connect();
   try {
     await client.query('UPDATE projects SET thumbnail = $1, updated_at = NOW() WHERE id = $2', [imageUrl, projectId]);
   } finally {

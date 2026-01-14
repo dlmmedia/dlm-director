@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { list } from '@vercel/blob';
-import { pool } from '@/lib/db';
+import { getPool } from '@/lib/db';
 
 // Migration endpoint to import projects from Vercel Blob to Neon DB
 export async function POST() {
@@ -8,7 +8,7 @@ export async function POST() {
     return NextResponse.json({ error: 'BLOB_READ_WRITE_TOKEN not configured' }, { status: 500 });
   }
 
-  const client = await pool.connect();
+  const client = await getPool().connect();
   let imported = 0;
   let skipped = 0;
   const errors: string[] = [];
