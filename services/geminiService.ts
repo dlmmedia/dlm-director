@@ -368,26 +368,44 @@ export const generateSceneVideo = async (
     const validAspectRatio = mapToSupportedAspectRatio(aspectRatio);
 
     // Call API
-    // @ts-ignore
-    let operation = await ai.models.generateVideos({
+    // Note: some Gemini API deployments reject the `generateAudio` parameter entirely.
+    // We only include it when true, and if the API still rejects it we retry once without it.
+    const requestBase: any = {
       model: modelId,
       prompt: finalPrompt,
-      // @ts-ignore
-      image: imageBytes ? {
-        imageBytes,
-        mimeType,
-      } : undefined,
-       // @ts-ignore
+      image: imageBytes
+        ? {
+            imageBytes,
+            mimeType,
+          }
+        : undefined,
       referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
       config: {
         numberOfVideos: 1,
         aspectRatio: validAspectRatio as any,
-        // Deterministic audio control (Veo 3.x only)
-        // Veo 2.x doesn't support audio; the flag will be false there.
-        // @ts-ignore
-        generateAudio,
+        ...(generateAudio ? { generateAudio: true } : {}),
+      },
+    };
+
+    let operation: any;
+    try {
+      operation = await ai.models.generateVideos(requestBase);
+    } catch (e: any) {
+      const msg = String(e?.message || e);
+      if (generateAudio && msg.toLowerCase().includes('generateaudio') && msg.toLowerCase().includes('not supported')) {
+        console.warn('[GeminiService] generateAudio rejected by API; retrying without generateAudio.');
+        const fallbackReq = {
+          ...requestBase,
+          config: {
+            numberOfVideos: 1,
+            aspectRatio: validAspectRatio as any,
+          },
+        };
+        operation = await ai.models.generateVideos(fallbackReq as any);
+      } else {
+        throw e;
       }
-    });
+    }
 
     // Polling loop
     console.log('[GeminiService] Polling for video generation...');
@@ -482,22 +500,37 @@ export const extendVideo = async (
       // Map aspect ratio to a supported value
       const validAspectRatio = mapToSupportedAspectRatio(config?.aspectRatio);
       
-      // @ts-ignore
-      let operation = await ai.models.generateVideos({
-          model: modelId,
-          prompt: `Cinematic extension. ${prompt}${config?.audioEnabled ? '' : '\n\nAUDIO: Silent, no sound.'}`,
-          // @ts-ignore - Hypothetical input structure for extension
-          video: {
-              videoBytes,
-              mimeType
-          },
-          config: {
-              numberOfVideos: 1,
-              aspectRatio: validAspectRatio as any,
-              // @ts-ignore
-              generateAudio,
-          }
-      });
+      const requestBase: any = {
+        model: modelId,
+        prompt: `Cinematic extension. ${prompt}${config?.audioEnabled ? '' : '\n\nAUDIO: Silent, no sound.'}`,
+        // @ts-ignore - Hypothetical input structure for extension
+        video: {
+          videoBytes,
+          mimeType,
+        },
+        config: {
+          numberOfVideos: 1,
+          aspectRatio: validAspectRatio as any,
+          ...(generateAudio ? { generateAudio: true } : {}),
+        },
+      };
+
+      let operation: any;
+      try {
+        operation = await ai.models.generateVideos(requestBase);
+      } catch (e: any) {
+        const msg = String(e?.message || e);
+        if (generateAudio && msg.toLowerCase().includes('generateaudio') && msg.toLowerCase().includes('not supported')) {
+          console.warn('[GeminiService] generateAudio rejected by API (extend); retrying without generateAudio.');
+          const fallbackReq = {
+            ...requestBase,
+            config: { numberOfVideos: 1, aspectRatio: validAspectRatio as any },
+          };
+          operation = await ai.models.generateVideos(fallbackReq as any);
+        } else {
+          throw e;
+        }
+      }
 
       // Poll
       while (!operation.done) {
