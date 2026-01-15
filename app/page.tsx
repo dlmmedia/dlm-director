@@ -513,25 +513,102 @@ export default function Home() {
     }));
 
     try {
+      // Ensure we have a project ID so we can avoid huge base64 payloads in Server Actions.
+      const projectId = currentProjectId || await ensureProjectExists();
+      if (!projectId) {
+        throw new Error('No project available. Failed to create/save project before video generation.');
+      }
+
+      // Ensure the input image is a persisted URL (not a data: URI) to avoid Server Action 10MB limits.
+      let inputImageUrl = scene.imageUrl;
+      if (typeof inputImageUrl === 'string' && inputImageUrl.startsWith('data:')) {
+        const uploaded = await uploadSceneImage(projectId, sceneId, inputImageUrl);
+        if (uploaded) inputImageUrl = uploaded;
+      }
+
+      // Persist any reference images / frame anchors that are still data URIs.
+      const resolvedReferenceImages = await Promise.all(
+        (scene.referenceImages || []).map(async (ref) => {
+          let url = ref.url;
+          if (typeof url === 'string' && url.startsWith('data:')) {
+            const uploaded = await uploadSceneImage(projectId, sceneId, url);
+            if (uploaded) url = uploaded;
+          }
+          // Never send `base64` field through Server Actions (can be huge)
+          return { ...ref, url, base64: undefined };
+        })
+      );
+
+      let resolvedFrameAnchoring = scene.frameAnchoring ? { ...scene.frameAnchoring } : undefined;
+      if (resolvedFrameAnchoring?.firstFrameUrl?.startsWith('data:')) {
+        const uploaded = await uploadSceneImage(projectId, sceneId, resolvedFrameAnchoring.firstFrameUrl);
+        if (uploaded) resolvedFrameAnchoring.firstFrameUrl = uploaded;
+      }
+      if (resolvedFrameAnchoring?.lastFrameUrl?.startsWith('data:')) {
+        const uploaded = await uploadSceneImage(projectId, sceneId, resolvedFrameAnchoring.lastFrameUrl);
+        if (uploaded) resolvedFrameAnchoring.lastFrameUrl = uploaded;
+      }
+
+      // Update local state so future actions use the persisted URLs.
+      setConfig((prev) => {
+        const next = {
+          ...prev,
+          scenes: prev.scenes.map((s) =>
+            s.id === sceneId
+              ? {
+                  ...s,
+                  imageUrl: inputImageUrl,
+                  referenceImages: resolvedReferenceImages,
+                  frameAnchoring: resolvedFrameAnchoring,
+                }
+              : s
+          ),
+        };
+        // Save in the background (non-blocking)
+        saveProject(projectId, next).then(() => {
+          lastSavedConfigRef.current = JSON.stringify(next);
+        }).catch(() => {});
+        return next;
+      });
+
+      // IMPORTANT: Server Actions serialize all args. Passing full `config` includes `scenes` with URLs/data,
+      // which can exceed the 10MB Server Actions body limit. Send a slim copy.
+      const slimConfig = {
+        ...currentConfig,
+        scenes: [],
+        globalReferenceImages: [],
+      } as ProjectConfig;
+
+      const slimScene = {
+        ...scene,
+        // Avoid duplicating large fields; the input image URL is passed separately.
+        imageUrl: undefined,
+        videoUrl: undefined,
+        errorMsg: undefined,
+        revisionHistory: undefined,
+        referenceImages: resolvedReferenceImages,
+        frameAnchoring: resolvedFrameAnchoring,
+      } as Scene;
+
       const videoData = await generateSceneVideo(
-        scene.imageUrl, 
+        inputImageUrl, 
         scene.visualPrompt, 
         currentConfig.aspectRatio,
-        currentConfig,
-        scene,
-        currentProjectId,
+        slimConfig,
+        slimScene,
+        projectId,
         revisionNote
       );
       
       // Upload video to Vercel Blob for persistent storage
       let videoUrl = videoData;
-      if (currentProjectId && videoData.startsWith('data:video')) {
+      if (projectId && videoData.startsWith('data:video')) {
         // Convert base64 to blob for upload
         const base64Data = videoData.replace(/^data:video\/mp4;base64,/, '');
         const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
         const videoBlob = new Blob([binaryData], { type: 'video/mp4' });
         
-        const blobUrl = await uploadSceneVideo(currentProjectId, sceneId, videoBlob);
+        const blobUrl = await uploadSceneVideo(projectId, sceneId, videoBlob);
         if (blobUrl) {
           videoUrl = blobUrl;
           console.log(`✅ Video for scene ${sceneId} uploaded to Blob:`, blobUrl);
@@ -550,8 +627,8 @@ export default function Home() {
         };
         
         // Immediately save to ensure the video URL is persisted
-        if (currentProjectId) {
-          saveProject(currentProjectId, newConfig).then(() => {
+        if (projectId) {
+          saveProject(projectId, newConfig).then(() => {
             console.log(`✅ Project saved with video for scene ${sceneId}`);
             lastSavedConfigRef.current = JSON.stringify(newConfig);
           });
@@ -584,22 +661,36 @@ export default function Home() {
     }));
 
     try {
+      const projectId = currentProjectId || await ensureProjectExists();
+      if (!projectId) {
+        throw new Error('No project available. Failed to create/save project before video extension.');
+      }
+
+      // Send slim config to avoid Server Actions body limits.
+      const slimConfig = {
+        ...currentConfig,
+        scenes: [],
+        globalReferenceImages: [],
+      } as ProjectConfig;
+
       // Extend the video
       const extendedVideoData = await extendVideo(
         scene.videoUrl,
         scene.visualPrompt,
-        currentConfig
+        slimConfig,
+        projectId,
+        sceneId
       );
       
       // Upload extended video
       let videoUrl = extendedVideoData;
-      if (currentProjectId && extendedVideoData.startsWith('data:video')) {
+      if (projectId && extendedVideoData.startsWith('data:video')) {
         const base64Data = extendedVideoData.replace(/^data:video\/mp4;base64,/, '');
         const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
         const videoBlob = new Blob([binaryData], { type: 'video/mp4' });
         
         // We use the same scene ID but maybe we should append a suffix or update the scene
-        const blobUrl = await uploadSceneVideo(currentProjectId, sceneId, videoBlob);
+        const blobUrl = await uploadSceneVideo(projectId, sceneId, videoBlob);
         if (blobUrl) {
           videoUrl = blobUrl;
         }
@@ -618,8 +709,8 @@ export default function Home() {
           } : s)
         };
         
-        if (currentProjectId) {
-          saveProject(currentProjectId, newConfig);
+        if (projectId) {
+          saveProject(projectId, newConfig);
           lastSavedConfigRef.current = JSON.stringify(newConfig);
         }
         return newConfig;
