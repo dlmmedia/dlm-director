@@ -20,16 +20,17 @@ apiKey = apiKey.replace(/\\n/g, '');
 const API_KEY = apiKey || process.env.GEMINI_API_KEY || '';
 
 async function testGenerateImages() {
-    console.log("Testing generateContent (Image) with Nano Banana Pro...");
+    console.log("Testing generateContent (Image) with Nano Banana Pro (gemini-3-pro-image-preview)...");
     const ai = new GoogleGenAI({ apiKey: API_KEY });
 
     try {
         const response = await ai.models.generateContent({
-            model: 'nano-banana-pro-preview',
+            model: 'gemini-3-pro-image-preview',
             contents: [{ role: 'user', parts: [{ text: 'A futuristic city with flying cars, cinematic lighting' }] }],
             config: {
+                // @ts-ignore - responseModalities for image generation
                 responseModalities: ['IMAGE'],
-                // @ts-ignore
+                // @ts-ignore - aspectRatio for image dimensions
                 aspectRatio: '16:9'
             }
         });

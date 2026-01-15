@@ -55,7 +55,7 @@ export default function Home() {
   const [sidebarRefreshTrigger, setSidebarRefreshTrigger] = useState(0);
   
   // AbortController for cancelling ongoing generation
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const abortControllersRef = useRef<Map<number, AbortController>>(new Map());
   
   // Ref to always have access to the latest config for callbacks/loops
   const configRef = useRef<ProjectConfig>(config);
@@ -325,10 +325,11 @@ export default function Home() {
   const handleCancelGeneration = useCallback((sceneId: number) => {
     console.log(`🛑 Cancelling generation for scene ${sceneId}`);
     
-    // Abort any ongoing request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
+    // Abort only this scene's request (do not cancel other scenes)
+    const controller = abortControllersRef.current.get(sceneId);
+    if (controller) {
+      controller.abort();
+      abortControllersRef.current.delete(sceneId);
     }
     
     // Reset the scene status
@@ -349,21 +350,19 @@ export default function Home() {
   }, []);
 
   const handleGenerateImage = async (sceneId: number) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/38be5295-f513-45bf-9b9a-128482a00dc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:321',message:'handleGenerateImage ENTRY',data:{sceneId,hasCurrentProjectId:!!currentProjectId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B,C,D,E'})}).catch(()=>{});
-    // #endregion
+    console.log(`[handleGenerateImage] Starting for scene ${sceneId}`);
     
-    // Cancel any previous ongoing request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    
-    // Create new AbortController for this request
-    abortControllerRef.current = new AbortController();
-    const signal = abortControllerRef.current.signal;
+    // Cancel only this scene's previous request (if any)
+    const existing = abortControllersRef.current.get(sceneId);
+    if (existing) existing.abort();
+
+    // Create new AbortController for this scene
+    const controller = new AbortController();
+    abortControllersRef.current.set(sceneId, controller);
+    const signal = controller.signal;
     
     // Get the current scene
-    const currentConfig = configRef.current; // Use ref to get most recent state during async ops if needed, but for start is ok
+    const currentConfig = configRef.current;
     const scene = currentConfig.scenes.find(s => s.id === sceneId);
     if (!scene) return;
 
@@ -373,37 +372,56 @@ export default function Home() {
     }));
 
     try {
+      // Ensure we have a project ID so server-side generation can upload to storage
+      // (avoids huge base64 payloads coming back through Server Actions)
+      const projectId = currentProjectId || await ensureProjectExists();
+      if (!projectId) {
+        throw new Error('No project available. Failed to create/save project before image generation.');
+      }
+
       // Check if cancelled before making API call
       if (signal.aborted) {
-        throw new Error('Generation cancelled');
+        console.log(`🛑 Generation was cancelled before API call for scene ${sceneId}`);
+        setConfig(prev => ({
+          ...prev,
+          scenes: prev.scenes.map(s => s.id === sceneId ? { ...s, status: 'pending', errorMsg: undefined } : s)
+        }));
+        return;
       }
       
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/38be5295-f513-45bf-9b9a-128482a00dc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:337',message:'Before generateSceneImage call',data:{sceneId,visualPromptLength:scene.visualPrompt?.length,aspectRatio:currentConfig.aspectRatio},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B'})}).catch(()=>{});
-      // #endregion
+      console.log(`[handleGenerateImage] Calling generateSceneImage for scene ${sceneId}`);
       
       const imageData = await generateSceneImage(
         scene.visualPrompt, 
         currentConfig.aspectRatio,
         currentConfig,
-        scene
+        scene,
+        projectId
       );
       
-      // Check if cancelled after API call
+      // Check if cancelled after API call - only reset status, don't throw
       if (signal.aborted) {
-        throw new Error('Generation cancelled');
+        console.log(`🛑 Generation was cancelled after API call for scene ${sceneId}`);
+        return;
       }
       
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/38be5295-f513-45bf-9b9a-128482a00dc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:348',message:'generateSceneImage returned SUCCESS',data:{hasImageData:!!imageData,imageDataLength:imageData?.length,isDataUrl:imageData?.startsWith?.('data:')},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,C'})}).catch(()=>{});
-      // #endregion
+      console.log(`[handleGenerateImage] Image generated successfully for scene ${sceneId}, length: ${imageData?.length}`);
       
       let imageUrl = imageData;
-      if (currentProjectId) {
-        const blobUrl = await uploadSceneImage(currentProjectId, sceneId, imageData);
+      const looksLikeUrl =
+        typeof imageData === 'string' &&
+        (imageData.startsWith('http://') ||
+          imageData.startsWith('https://') ||
+          imageData.startsWith('/api/') ||
+          imageData.startsWith('/data/'));
+
+      // If the server action already persisted the image and returned a URL, do NOT re-upload it.
+      // Re-uploading a URL string corrupts the image bytes and results in broken/blank images.
+      if (!looksLikeUrl) {
+        const blobUrl = await uploadSceneImage(projectId, sceneId, imageData);
         if (blobUrl) {
           imageUrl = blobUrl;
-          console.log(`✅ Image for scene ${sceneId} uploaded to Blob:`, blobUrl);
+          console.log(`✅ Image for scene ${sceneId} uploaded to storage:`, blobUrl);
         }
       }
       
@@ -419,8 +437,8 @@ export default function Home() {
         };
         
         // Immediately save to ensure the image URL is persisted
-        if (currentProjectId) {
-          saveProject(currentProjectId, newConfig).then(() => {
+        if (projectId) {
+          saveProject(projectId, newConfig).then(() => {
             console.log(`✅ Project saved with image for scene ${sceneId}`);
             lastSavedConfigRef.current = JSON.stringify(newConfig);
           });
@@ -429,16 +447,20 @@ export default function Home() {
         return newConfig;
       });
     } catch (e: any) {
-      // Don't show error if it was intentionally cancelled
-      if (e.message === 'Generation cancelled' || signal.aborted) {
+      // Log the actual error for debugging
+      console.error(`[handleGenerateImage] Error for scene ${sceneId}:`, e?.message, e);
+      
+      // Only treat as cancelled if it was explicitly cancelled (not other errors)
+      if (e.message === 'Generation cancelled' || e.name === 'AbortError') {
         console.log(`🛑 Generation was cancelled for scene ${sceneId}`);
+        setConfig(prev => ({
+          ...prev,
+          scenes: prev.scenes.map(s => s.id === sceneId ? { ...s, status: 'pending', errorMsg: undefined } : s)
+        }));
         return;
       }
       
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/38be5295-f513-45bf-9b9a-128482a00dc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:385',message:'handleGenerateImage CATCH error',data:{error:e?.message,name:e?.name,stack:e?.stack?.substring(0,500)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,B,C,D,E'})}).catch(()=>{});
-      // #endregion
-      
+      // Show the actual error
       setConfig(prev => ({
         ...prev,
         scenes: prev.scenes.map(s => s.id === sceneId ? { ...s, status: 'error', errorMsg: e?.message || 'Image generation failed' } : s)
@@ -446,8 +468,9 @@ export default function Home() {
       setErrorMessage(`Image generation failed for scene ${sceneId}: ${e?.message || 'Unknown error'}`);
     } finally {
       // Clean up the abort controller
-      if (abortControllerRef.current?.signal === signal) {
-        abortControllerRef.current = null;
+      const current = abortControllersRef.current.get(sceneId);
+      if (current?.signal === signal) {
+        abortControllersRef.current.delete(sceneId);
       }
     }
   };
@@ -469,7 +492,8 @@ export default function Home() {
         scene.visualPrompt, 
         currentConfig.aspectRatio,
         currentConfig,
-        scene
+        scene,
+        currentProjectId
       );
       
       // Upload video to Vercel Blob for persistent storage
@@ -624,7 +648,7 @@ export default function Home() {
       });
 
       // Process in chunks to avoid rate limits
-      const CHUNK_SIZE = 2;
+      const CHUNK_SIZE = 1;
       for (let i = 0; i < scenesToProcess.length; i += CHUNK_SIZE) {
         const chunk = scenesToProcess.slice(i, i + CHUNK_SIZE);
         await Promise.all(chunk.map(scene => handleGenerateVideo(scene.id)));
@@ -646,7 +670,7 @@ export default function Home() {
     });
 
     // Process in chunks
-    const CHUNK_SIZE = 3;
+    const CHUNK_SIZE = 1;
     for (let i = 0; i < scenesToProcess.length; i += CHUNK_SIZE) {
        const chunk = scenesToProcess.slice(i, i + CHUNK_SIZE);
        await Promise.all(chunk.map(scene => handleGenerateImage(scene.id)));

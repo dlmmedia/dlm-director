@@ -269,29 +269,84 @@ export async function deleteProject(projectId: string): Promise<boolean> {
 export async function uploadImage(
   projectId: string,
   sceneId: number,
-  imageData: string | Buffer | Blob
+  imageData: string | Buffer | Blob,
+  contentTypeHint?: string
 ): Promise<string> {
-  // Convert base64 to buffer if needed
-  let data: Buffer | Blob | string;
-  if (typeof imageData === 'string' && imageData.startsWith('data:')) {
-    const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '');
-    data = Buffer.from(base64Data, 'base64');
-  } else if (typeof imageData === 'string') {
-     // Check if it's base64 or raw string
-    try {
-        data = Buffer.from(imageData, 'base64');
-    } catch {
-        data = imageData;
-    }
-  } else {
-    data = imageData;
+  // If we are accidentally handed an already-persisted URL, just return it.
+  // Treating URLs as base64 corrupts the bytes and results in broken images.
+  if (
+    typeof imageData === 'string' &&
+    (imageData.startsWith('http://') ||
+      imageData.startsWith('https://') ||
+      imageData.startsWith('/api/') ||
+      imageData.startsWith('/data/'))
+  ) {
+    return imageData;
   }
 
-  // Upload to Blob
-  const path = `projects/${projectId}/images/scene-${sceneId}-${nanoid(6)}.png`;
+  // Normalize into Buffer when possible (so we can detect mime type)
+  let data: Buffer | Blob | string = imageData;
+  let detectedContentType: string | undefined = contentTypeHint;
+
+  if (typeof imageData === 'string' && imageData.startsWith('data:')) {
+    const matches = imageData.match(/^data:([^;]+);base64,(.+)$/);
+    if (matches) {
+      detectedContentType = detectedContentType || matches[1];
+      data = Buffer.from(matches[2], 'base64');
+    }
+  } else if (typeof imageData === 'string') {
+    // If it's not a data URL, treat it as base64 when it decodes cleanly
+    try {
+      data = Buffer.from(imageData, 'base64');
+    } catch {
+      data = imageData;
+    }
+  }
+
+  // If we have a Buffer, do minimal magic-byte sniffing to avoid mismatched content-type
+  if (Buffer.isBuffer(data) && !detectedContentType) {
+    // JPEG: FF D8 FF
+    if (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) {
+      detectedContentType = 'image/jpeg';
+    }
+    // PNG: 89 50 4E 47 0D 0A 1A 0A
+    else if (
+      data.length >= 8 &&
+      data[0] === 0x89 &&
+      data[1] === 0x50 &&
+      data[2] === 0x4e &&
+      data[3] === 0x47 &&
+      data[4] === 0x0d &&
+      data[5] === 0x0a &&
+      data[6] === 0x1a &&
+      data[7] === 0x0a
+    ) {
+      detectedContentType = 'image/png';
+    }
+    // WEBP: "RIFF....WEBP"
+    else if (
+      data.length >= 12 &&
+      data.toString('ascii', 0, 4) === 'RIFF' &&
+      data.toString('ascii', 8, 12) === 'WEBP'
+    ) {
+      detectedContentType = 'image/webp';
+    } else {
+      detectedContentType = 'application/octet-stream';
+    }
+  }
+
+  const contentType = detectedContentType || 'application/octet-stream';
+  const ext =
+    contentType === 'image/jpeg' ? 'jpg' :
+    contentType === 'image/png' ? 'png' :
+    contentType === 'image/webp' ? 'webp' :
+    'bin';
+
+  // Upload to Blob (preserve real mime type)
+  const path = `projects/${projectId}/images/scene-${sceneId}-${nanoid(6)}.${ext}`;
   const blob = await put(path, data, {
     access: 'public',
-    contentType: 'image/png',
+    contentType,
   });
 
   // Note: Asset URL is stored in scene config JSONB via saveProject

@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
     let sceneId: number;
     let type: 'image' | 'video';
     let data: Buffer;
+    let contentTypeHint: string | undefined;
 
     // Handle both FormData and JSON requests
     if (contentType.includes('application/json')) {
@@ -33,10 +34,29 @@ export async function POST(request: NextRequest) {
       if (!base64Data) {
         return NextResponse.json({ error: 'Missing data field' }, { status: 400 });
       }
+
+      // If caller accidentally sends a URL, just return it (avoid corrupting it via base64 decode).
+      if (
+        typeof base64Data === 'string' &&
+        (base64Data.startsWith('http://') ||
+          base64Data.startsWith('https://') ||
+          base64Data.startsWith('/api/') ||
+          base64Data.startsWith('/data/'))
+      ) {
+        return NextResponse.json({ url: base64Data });
+      }
       
       // Remove data URL prefix if present
-      const base64Clean = base64Data.replace(/^data:[^;]+;base64,/, '');
-      data = Buffer.from(base64Clean, 'base64');
+      const matches = typeof base64Data === 'string'
+        ? base64Data.match(/^data:([^;]+);base64,(.+)$/)
+        : null;
+      if (matches) {
+        contentTypeHint = matches[1];
+        data = Buffer.from(matches[2], 'base64');
+      } else {
+        const base64Clean = String(base64Data).replace(/^data:[^;]+;base64,/, '');
+        data = Buffer.from(base64Clean, 'base64');
+      }
     } else {
       // FormData request (for video files or binary uploads)
       const formData = await request.formData();
@@ -49,6 +69,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Missing file' }, { status: 400 });
       }
       
+      contentTypeHint = file.type || undefined;
       data = Buffer.from(await file.arrayBuffer());
     }
 
@@ -66,7 +87,7 @@ export async function POST(request: NextRequest) {
     // #endregion
     
     if (type === 'image') {
-      url = await uploadImage(projectId, sceneId, data);
+      url = await uploadImage(projectId, sceneId, data, contentTypeHint);
     } else if (type === 'video') {
       url = await uploadVideo(projectId, sceneId, data);
     } else {

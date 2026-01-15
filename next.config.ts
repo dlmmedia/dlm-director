@@ -5,7 +5,6 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname),
   reactStrictMode: true,
   images: {
-    domains: ['*.public.blob.vercel-storage.com'],
     remotePatterns: [
       {
         protocol: 'https',
@@ -16,8 +15,10 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       bodySizeLimit: '10mb',
+      // Allow all origins for development (server actions work from any host)
     },
   },
+  serverExternalPackages: ['@google/genai'],
   // Removed strict headers that block cross-origin media loading
   async headers() {
     return [

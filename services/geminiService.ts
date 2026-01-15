@@ -6,6 +6,7 @@
 // ========================================
 
 import { GoogleGenAI } from "@google/genai";
+import { uploadImage as uploadImageToBlob, uploadVideo as uploadVideoToBlob } from "@/lib/storageService";
 import {
   Scene,
   ProjectConfig,
@@ -47,11 +48,22 @@ const getAi = () => {
 async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 2000): Promise<T> {
   try {
     return await fn();
-  } catch (error) {
+  } catch (error: any) {
     if (retries > 0) {
-      console.warn(`[GeminiService] Operation failed, retrying... (${retries} attempts left). Error: ${error}`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-      return withRetry(fn, retries - 1, delay * 2);
+      // Check for specific error types that are worth retrying
+      const shouldRetry = 
+        error?.message?.includes('503') || 
+        error?.message?.includes('429') || 
+        error?.message?.includes('network') ||
+        error?.message?.includes('fetch') ||
+        error?.status === 503 ||
+        error?.status === 429;
+
+      if (shouldRetry || retries > 1) { // Retry at least once for unknown errors, but persist for network/server errors
+        console.warn(`[GeminiService] Operation failed, retrying... (${retries} attempts left). Error: ${error?.message || error}`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return withRetry(fn, retries - 1, delay * 2); // Exponential backoff
+      }
     }
     throw error;
   }
@@ -59,13 +71,16 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 2000): Pr
 
 // --- IMAGE GENERATION ---
 // Can be called with just (scene, config) OR (visualPrompt, aspectRatio, config, scene) for backwards compatibility
-// Using Nano Banana Pro (gemini-3-pro-image-preview) - the latest and best image generation model
+// Using Gemini 2.0 Flash Experimental Image Generation
 export const generateSceneImage = async (
   sceneOrPrompt: Scene | string,
   configOrAspectRatio: ProjectConfig | string,
   optionalConfig?: ProjectConfig,
-  optionalScene?: Scene
+  optionalScene?: Scene,
+  projectId?: string | null
 ): Promise<string> => {
+  console.log('[SERVER ACTION] generateSceneImage called');
+  
   // Handle both calling conventions
   let scene: Scene;
   let config: ProjectConfig;
@@ -80,29 +95,34 @@ export const generateSceneImage = async (
     config = configOrAspectRatio as ProjectConfig;
   }
   
+  console.log(`[SERVER ACTION] Scene ID: ${scene?.id}, Config aspect ratio: ${config?.aspectRatio}`);
+  
   return withRetry(async () => {
+    console.log('[SERVER ACTION] Inside withRetry, about to call getAi()');
     const ai = getAi();
+    console.log('[SERVER ACTION] AI instance created successfully');
     
     // Build the enhanced prompt
     const prompt = buildEnhancedPrompt(scene, config, { includeNegative: true });
-    console.log(`[GeminiService] Generating Image for Scene ${scene.id} with Nano Banana Pro. Prompt length: ${prompt.length}`);
+    console.log(`[GeminiService] Generating Image for Scene ${scene.id}. Prompt length: ${prompt.length}`);
 
-    // Use Nano Banana Pro model (latest and best for image generation)
-    const modelId = 'nano-banana-pro-preview';
+    // Use Nano Banana Pro model (Gemini 3 Pro Image Preview) - latest 4K image generation
+    const modelId = 'gemini-3-pro-image-preview';
     
     // Map aspect ratio to a supported value
     const validAspectRatio = mapToSupportedAspectRatio(config.aspectRatio);
     
     console.log(`[GeminiService] Calling generateContent API with model ${modelId}, aspect ratio: ${validAspectRatio}...`);
+    console.log('[SERVER ACTION] About to call ai.models.generateContent...');
     
-    // Add timeout wrapper for the API call (90 seconds for higher quality model)
+    // Add timeout wrapper for the API call (300 seconds for image generation - 5 mins)
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Image generation timeout after 90 seconds')), 90000);
+      setTimeout(() => reject(new Error('Image generation timeout after 300 seconds')), 300000);
     });
 
     let response: any;
     try {
-      // Nano Banana Pro uses generateContent with IMAGE response modality
+      // Use generateContent with IMAGE response modality
       const apiCall = ai.models.generateContent({
         model: modelId,
         contents: [{ 
@@ -110,28 +130,38 @@ export const generateSceneImage = async (
           parts: [{ text: prompt }] 
         }],
         config: {
+          // @ts-ignore - responseModalities for image generation
           responseModalities: ['IMAGE'],
-          // @ts-ignore - aspectRatio may not be in types but is supported
+          // @ts-ignore - aspectRatio for image dimensions
           aspectRatio: validAspectRatio,
+          // @ts-ignore - sampleCount to ensures we just get 1 high quality image
+          sampleCount: 1
         }
       });
       
+      console.log('[SERVER ACTION] API call initiated, waiting for response...');
+      
       // Race between API call and timeout
       response = await Promise.race([apiCall, timeoutPromise]);
-      
-      console.log(`[GeminiService] generateContent API call completed`);
+      console.log('[GeminiService] generateContent API call completed');
+      console.log(`[SERVER ACTION] Response received, candidates: ${response?.candidates?.length || 0}`);
       
     } catch (apiErr: any) {
-      console.error(`[GeminiService] generateContent API call FAILED:`, apiErr);
+      console.error(`[GeminiService] generateContent API call FAILED:`, apiErr?.message);
+      console.error(`[SERVER ACTION] Full error:`, JSON.stringify(apiErr, null, 2));
       throw apiErr;
     }
 
-    // Extract image from Nano Banana Pro response structure
+    // Extract image from response structure
     const candidate = response?.candidates?.[0];
-    const imagePart = candidate?.content?.parts?.[0];
+    const parts = candidate?.content?.parts || [];
     
-    console.log(`[GeminiService] Image extraction result:`, {
+    // Find the image part (could be first or second part depending on model response)
+    let imagePart = parts.find((p: any) => p?.inlineData?.data);
+    
+    console.log('[GeminiService] Image extraction result:', {
       hasCandidate: !!candidate,
+      partsCount: parts.length,
       hasImagePart: !!imagePart,
       hasInlineData: !!imagePart?.inlineData,
       dataLength: imagePart?.inlineData?.data?.length,
@@ -139,12 +169,27 @@ export const generateSceneImage = async (
     });
     
     if (!imagePart?.inlineData?.data) {
-      console.error(`[GeminiService] No image data found in response. Full response:`, JSON.stringify(response, null, 2).substring(0, 1000));
-      throw new Error(`No image generated. Response structure: ${JSON.stringify(Object.keys(response || {}))}`);
+      console.error(`[GeminiService] No image data found in response for scene ${scene.id}`);
+      console.error('[GeminiService] Response parts:', JSON.stringify(parts.map((p: any) => Object.keys(p || {})), null, 2));
+      throw new Error(`No image generated. Response had ${parts.length} parts but no image data.`);
     }
 
     const mimeType = imagePart.inlineData.mimeType || 'image/png';
-    return `data:${mimeType};base64,${imagePart.inlineData.data}`;
+    const dataUrl = `data:${mimeType};base64,${imagePart.inlineData.data}`;
+
+    // Prefer server-side upload to Blob when projectId is provided (avoid huge base64 roundtrips)
+    if (projectId) {
+      try {
+        const base64Clean = imagePart.inlineData.data;
+        const buf = Buffer.from(base64Clean, 'base64');
+        const url = await uploadImageToBlob(projectId, scene.id, buf, mimeType);
+        return url;
+      } catch (e) {
+        console.warn('[GeminiService] Server-side image upload failed; falling back to data URL.', e);
+      }
+    }
+
+    return dataUrl;
   }, 2, 3000); // 2 retries with 3 second delay
 };
 
@@ -154,7 +199,8 @@ export const generateSceneVideo = async (
   prompt: string, // Fallback simple prompt
   aspectRatio: string,
   config?: ProjectConfig,
-  scene?: Scene
+  scene?: Scene,
+  projectId?: string | null
 ): Promise<string> => {
   return withRetry(async () => {
     // Ensure we have a key selected for Veo if running in browser context (shim check)
@@ -190,6 +236,37 @@ export const generateSceneVideo = async (
                 mimeType = matches[1];
                 imageBytes = matches[2];
             }
+         } else if (imageBase64.startsWith('http') || imageBase64.startsWith('/')) {
+             try {
+                 console.log(`[GeminiService] Fetching input image from URL: ${imageBase64}`);
+                 // Handle relative URLs by prepending the base URL if needed, or assuming they are fetchable if running on same domain
+                 // For server actions, relative URLs might be tricky if not full URLs.
+                 // Ideally, we should receive full URLs. If it starts with '/', it might be a public file.
+                 // However, fetch() in Node (server action) might need a full URL if it's relative to the server.
+                 // Assuming 'http' urls for now. If it's '/', it might be a blob url which works in browser but not server? 
+                 // Wait, this is a Server Action. Browser Blob URLs (blob:...) are not accessible from the server.
+                 // If the URL is a Vercel Blob URL (https://...), it works.
+                 // If it is a relative path like '/logo.png', we might need to construct the full URL, but typically stored images are full URLs.
+                 
+                 let fetchUrl = imageBase64;
+                 if (fetchUrl.startsWith('/')) {
+                     // Best effort for local files in public folder, but risky in serverless
+                     // Skipping complex relative logic for now, assuming valid http url or public accessible
+                     // If it's a relative path in Next.js, we might need process.env.NEXT_PUBLIC_BASE_URL
+                     // But let's assume standard http(s) for uploaded files.
+                     console.warn('[GeminiService] Relative URL detected. Fetch might fail if base URL is not handled.');
+                 }
+
+                 const res = await fetch(fetchUrl);
+                 if (!res.ok) throw new Error(`Failed to fetch image: ${res.statusText}`);
+                 const buf = await res.arrayBuffer();
+                 imageBytes = Buffer.from(buf).toString('base64');
+                 const contentType = res.headers.get('content-type');
+                 if (contentType) mimeType = contentType;
+             } catch (e) {
+                 console.error('[GeminiService] Failed to fetch input image from URL:', e);
+                 throw new Error('Failed to load input image from URL');
+             }
          } else {
              imageBytes = imageBase64; // assume raw base64
          }
@@ -230,6 +307,8 @@ export const generateSceneVideo = async (
     // Determine Model
     const modelId = config?.videoModel || VideoModel.VEO_3_1;
 
+    console.log(`[GeminiService] Using Video Model: ${modelId}`);
+
     // Map aspect ratio to a supported value
     const validAspectRatio = mapToSupportedAspectRatio(aspectRatio);
 
@@ -260,20 +339,20 @@ export const generateSceneVideo = async (
     let pollCount = 0;
     while (!operation.done) {
       pollCount++;
-      if (pollCount > 60) { // 2 minutes timeout approx (2s sleep)
-         throw new Error('Timeout waiting for video generation');
+      if (pollCount > 150) { // 5 minutes timeout approx (2s sleep * 150 = 300s)
+         throw new Error('Timeout waiting for video generation (exceeded 5 minutes)');
       }
       await new Promise(resolve => setTimeout(resolve, 2000));
-      // @ts-ignore
-      operation = await ai.models.operations.get({ name: operation.name });
+      // @ts-ignore - polling for long-running video operations (SDK v1.x)
+      operation = await (ai as any).operations.getVideosOperation({ operation });
     }
     
-    // @ts-ignore
-    const result = operation.result;
-    // @ts-ignore
+    const result = (operation as any)?.response ?? (operation as any)?.result;
     const video = result?.generatedVideos?.[0]?.video;
+    const videoUri: string | undefined = video?.videoUri || video?.uri;
 
-    if (!video || !video.videoUri) {
+    if (!videoUri) {
+       console.error('[GeminiService] Video generation failed. Result:', JSON.stringify(result, null, 2));
        throw new Error("No video URI in response");
     }
 
@@ -283,10 +362,30 @@ export const generateSceneVideo = async (
     // The previous implementation returned base64/url. 
     // Veo returns a short-lived URI. We should fetch it and save it.
     
-    const videoRes = await fetch(video.videoUri);
-    const videoBuf = await videoRes.arrayBuffer();
-    const videoBase64 = Buffer.from(videoBuf).toString('base64');
+    let videoRes = await fetch(videoUri);
+    if (!videoRes.ok && API_KEY) {
+      // Some URIs require the API key appended for download
+      const separator = videoUri.includes('?') ? '&' : '?';
+      const withKey = videoUri.includes('key=') ? videoUri : `${videoUri}${separator}key=${encodeURIComponent(API_KEY.trim())}`;
+      videoRes = await fetch(withKey);
+    }
+    if (!videoRes.ok) {
+      throw new Error(`Failed to fetch generated video: ${videoRes.status} ${videoRes.statusText}`);
+    }
 
+    const videoBuf = await videoRes.arrayBuffer();
+
+    // Prefer server-side upload to Blob when projectId is provided
+    if (projectId && scene?.id != null) {
+      try {
+        const url = await uploadVideoToBlob(projectId, scene.id, Buffer.from(videoBuf));
+        return url;
+      } catch (e) {
+        console.warn('[GeminiService] Server-side video upload failed; falling back to base64.', e);
+      }
+    }
+
+    const videoBase64 = Buffer.from(videoBuf).toString('base64');
     return `data:video/mp4;base64,${videoBase64}`;
 
   }, 3, 5000); // 3 retries, 5s initial delay
@@ -296,7 +395,9 @@ export const generateSceneVideo = async (
 export const extendVideo = async (
   videoBase64: string,
   prompt: string,
-  config?: ProjectConfig
+  config?: ProjectConfig,
+  projectId?: string | null,
+  sceneId?: number
 ): Promise<string> => {
    return withRetry(async () => {
       const ai = getAi();
@@ -305,8 +406,20 @@ export const extendVideo = async (
       console.log(`[GeminiService] Extending video. Model: ${modelId}`);
 
       // Basic cleanup of video data
-      let videoBytes = videoBase64.replace(/^data:video\/(mp4|webm);base64,/, '');
+      let videoBytes = '';
       let mimeType = 'video/mp4';
+
+      if (videoBase64.startsWith('data:video')) {
+        videoBytes = videoBase64.replace(/^data:video\/(mp4|webm);base64,/, '');
+      } else if (videoBase64.startsWith('http')) {
+        const res = await fetch(videoBase64);
+        if (!res.ok) throw new Error(`Failed to fetch input video: ${res.statusText}`);
+        const buf = await res.arrayBuffer();
+        videoBytes = Buffer.from(buf).toString('base64');
+      } else {
+        // assume raw base64
+        videoBytes = videoBase64;
+      }
 
       // Map aspect ratio to a supported value
       const validAspectRatio = mapToSupportedAspectRatio(config?.aspectRatio);
@@ -330,15 +443,34 @@ export const extendVideo = async (
       while (!operation.done) {
           await new Promise(resolve => setTimeout(resolve, 2000));
           // @ts-ignore
-          operation = await ai.models.operations.get({ name: operation.name });
+          operation = await (ai as any).operations.getVideosOperation({ operation });
       }
 
       // @ts-ignore
-      const video = operation.result?.generatedVideos?.[0]?.video;
-      if (!video?.videoUri) throw new Error("Extension failed");
+      const result = (operation as any)?.response ?? (operation as any)?.result;
+      const video = result?.generatedVideos?.[0]?.video;
+      const videoUri: string | undefined = video?.videoUri || video?.uri;
+      if (!videoUri) throw new Error("Extension failed");
       
-      const res = await fetch(video.videoUri);
+      let res = await fetch(videoUri);
+      if (!res.ok && API_KEY) {
+        const separator = videoUri.includes('?') ? '&' : '?';
+        const withKey = videoUri.includes('key=') ? videoUri : `${videoUri}${separator}key=${encodeURIComponent(API_KEY.trim())}`;
+        res = await fetch(withKey);
+      }
+      if (!res.ok) throw new Error(`Failed to fetch extended video: ${res.statusText}`);
+
       const buf = await res.arrayBuffer();
+
+      if (projectId && sceneId != null) {
+        try {
+          const url = await uploadVideoToBlob(projectId, sceneId, Buffer.from(buf));
+          return url;
+        } catch (e) {
+          console.warn('[GeminiService] Server-side extended video upload failed; falling back to base64.', e);
+        }
+      }
+
       return `data:video/mp4;base64,${Buffer.from(buf).toString('base64')}`;
 
    });

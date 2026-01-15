@@ -140,17 +140,42 @@ export async function uploadSceneImage(
   imageData: string
 ): Promise<string | null> {
   try {
-    console.log(`📤 Uploading image for scene ${sceneId} to Blob...`);
+    // If the "image" is already a URL (e.g. server-side persisted), do not upload again.
+    if (
+      imageData.startsWith('http://') ||
+      imageData.startsWith('https://') ||
+      imageData.startsWith('/api/') ||
+      imageData.startsWith('/data/')
+    ) {
+      return imageData;
+    }
+
+    console.log(`📤 Uploading image for scene ${sceneId} to storage...`);
+
+    // Prefer multipart upload to avoid huge JSON payload limits.
+    let mimeType = 'image/png';
+    let base64 = imageData;
+    if (imageData.startsWith('data:')) {
+      const matches = imageData.match(/^data:([^;]+);base64,(.+)$/);
+      if (matches) {
+        mimeType = matches[1] || mimeType;
+        base64 = matches[2] || '';
+      }
+    }
+
+    const binary = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+    const file = new Blob([binary], { type: mimeType });
+
+    const formData = new FormData();
+    formData.append('file', file, `scene-${sceneId}.${mimeType === 'image/jpeg' ? 'jpg' : mimeType === 'image/webp' ? 'webp' : 'png'}`);
+    formData.append('projectId', projectId);
+    formData.append('sceneId', sceneId.toString());
+    formData.append('type', 'image');
+
     const response = await withTimeout(fetch('/api/upload', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        projectId,
-        sceneId,
-        type: 'image',
-        data: imageData,
-      }),
-    }), 30000, "Image upload timed out"); // 30s timeout
+      body: formData,
+    }), 60000, "Image upload timed out"); // 60s timeout for large images
 
     if (!response.ok) throw new Error('Failed to upload image');
     const result = await response.json();
