@@ -77,7 +77,8 @@ export const generateSceneImage = async (
   configOrAspectRatio: ProjectConfig | string,
   optionalConfig?: ProjectConfig,
   optionalScene?: Scene,
-  projectId?: string | null
+  projectId?: string | null,
+  revisionNote?: string
 ): Promise<string> => {
   console.log('[SERVER ACTION] generateSceneImage called');
   
@@ -103,7 +104,7 @@ export const generateSceneImage = async (
     console.log('[SERVER ACTION] AI instance created successfully');
     
     // Build the enhanced prompt
-    const prompt = buildEnhancedPrompt(scene, config, { includeNegative: true });
+    const prompt = buildEnhancedPrompt(scene, config, { includeNegative: true, revisionNote });
     console.log(`[GeminiService] Generating Image for Scene ${scene.id}. Prompt length: ${prompt.length}`);
 
     // Use Nano Banana Pro model (Gemini 3 Pro Image Preview) - latest 4K image generation
@@ -200,7 +201,8 @@ export const generateSceneVideo = async (
   aspectRatio: string,
   config?: ProjectConfig,
   scene?: Scene,
-  projectId?: string | null
+  projectId?: string | null,
+  revisionNote?: string
 ): Promise<string> => {
   return withRetry(async () => {
     // Ensure we have a key selected for Veo if running in browser context (shim check)
@@ -216,7 +218,7 @@ export const generateSceneVideo = async (
     // Build motion-optimized prompt for Veo with explicit context
     let finalPrompt: string;
     if (config && scene) {
-      finalPrompt = buildVideoMotionPrompt(scene, config);
+      finalPrompt = buildVideoMotionPrompt(scene, config, { revisionNote });
     } else {
       finalPrompt = `Cinematic Video. ${prompt}`;
     }
@@ -306,8 +308,11 @@ export const generateSceneVideo = async (
 
     // Determine Model
     const modelId = config?.videoModel || VideoModel.VEO_3_1;
+    const isVeo3x = typeof modelId === 'string' && modelId.startsWith('veo-3');
+    const generateAudio = Boolean(config?.audioEnabled) && isVeo3x;
 
     console.log(`[GeminiService] Using Video Model: ${modelId}`);
+    console.log(`[GeminiService] generateAudio flag: ${generateAudio}`);
 
     // Map aspect ratio to a supported value
     const validAspectRatio = mapToSupportedAspectRatio(aspectRatio);
@@ -327,10 +332,10 @@ export const generateSceneVideo = async (
       config: {
         numberOfVideos: 1,
         aspectRatio: validAspectRatio as any,
-        // Only request audio if explicitly enabled in config
-        // Note: SDK parameter might vary, usually 'sampleCount' or similar for audio? 
-        // Veo 2/3 generates audio by default unless instructed otherwise in prompt or config.
-        // We relying on the STRONG prompt instruction "Silent, no sound" added in promptBuilder if audioEnabled is false.
+        // Deterministic audio control (Veo 3.x only)
+        // Veo 2.x doesn't support audio; the flag will be false there.
+        // @ts-ignore
+        generateAudio,
       }
     });
 
@@ -402,8 +407,11 @@ export const extendVideo = async (
    return withRetry(async () => {
       const ai = getAi();
       const modelId = config?.videoModel || VideoModel.VEO_3_1;
+      const isVeo3x = typeof modelId === 'string' && modelId.startsWith('veo-3');
+      const generateAudio = Boolean(config?.audioEnabled) && isVeo3x;
       
       console.log(`[GeminiService] Extending video. Model: ${modelId}`);
+      console.log(`[GeminiService] generateAudio flag (extend): ${generateAudio}`);
 
       // Basic cleanup of video data
       let videoBytes = '';
@@ -427,7 +435,7 @@ export const extendVideo = async (
       // @ts-ignore
       let operation = await ai.models.generateVideos({
           model: modelId,
-          prompt: `Cinematic extension. ${prompt}`,
+          prompt: `Cinematic extension. ${prompt}${config?.audioEnabled ? '' : '\n\nAUDIO: Silent, no sound.'}`,
           // @ts-ignore - Hypothetical input structure for extension
           video: {
               videoBytes,
@@ -435,7 +443,9 @@ export const extendVideo = async (
           },
           config: {
               numberOfVideos: 1,
-              aspectRatio: validAspectRatio as any
+              aspectRatio: validAspectRatio as any,
+              // @ts-ignore
+              generateAudio,
           }
       });
 

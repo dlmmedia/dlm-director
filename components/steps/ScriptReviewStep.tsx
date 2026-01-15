@@ -3,7 +3,9 @@ import { ProjectConfig, Scene, CharacterProfile } from '@/types';
 import { 
   ChevronDownIcon, 
   ArrowLeftIcon, 
-  ArrowRightIcon 
+  ArrowRightIcon,
+  PlusIcon,
+  XIcon
 } from '@/components/Icons';
 import { CharacterManager } from '@/components/CharacterManager';
 import { CinematographyControls, ShotPresets } from '@/components/CinematographyControls';
@@ -14,6 +16,8 @@ interface ScriptReviewStepProps {
   onAddCharacter: (character: CharacterProfile) => void;
   onUpdateCharacter: (id: string, updates: Partial<CharacterProfile>) => void;
   onRemoveCharacter: (id: string) => void;
+  onAddScene: () => void;
+  onDeleteScene: (sceneId: number) => void;
   onBack: () => void;
   onNext: () => void;
 }
@@ -24,6 +28,8 @@ export default function ScriptReviewStep({
   onAddCharacter,
   onUpdateCharacter,
   onRemoveCharacter,
+  onAddScene,
+  onDeleteScene,
   onBack,
   onNext
 }: ScriptReviewStepProps) {
@@ -81,6 +87,12 @@ export default function ScriptReviewStep({
 
       {activeTab === 'scenes' ? (
         <div className="space-y-4">
+          <div className="flex justify-end">
+            <button onClick={onAddScene} className="btn-ghost">
+              <PlusIcon />
+              <span>Add Scene</span>
+            </button>
+          </div>
           {config.scenes.map((scene, idx) => (
             <div key={scene.id} className="card-elevated overflow-hidden group hover:border-white/20 transition-all duration-300">
               {/* Scene Header */}
@@ -106,6 +118,19 @@ export default function ScriptReviewStep({
                   <div className="flex items-center gap-2 font-mono text-xs text-dlm-accent bg-dlm-accent/10 px-2 py-1 rounded border border-dlm-accent/20">
                      <span>{scene.durationEstimate}s</span>
                   </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm(`Delete Scene ${idx + 1}? This cannot be undone.`)) {
+                        if (expandedScene === scene.id) setExpandedScene(null);
+                        onDeleteScene(scene.id);
+                      }
+                    }}
+                    className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-colors"
+                    title="Delete Scene"
+                  >
+                    <XIcon />
+                  </button>
                   <div className={`text-gray-500 transition-transform duration-300 ${expandedScene === scene.id ? 'rotate-180 text-white' : ''}`}>
                     <ChevronDownIcon />
                   </div>

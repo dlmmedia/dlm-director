@@ -212,6 +212,7 @@ export function buildEnhancedPrompt(
   options: {
     includeNegative?: boolean;
     forVideo?: boolean;
+    revisionNote?: string;
   } = {}
 ): string {
   
@@ -267,6 +268,10 @@ export function buildEnhancedPrompt(
   
   let prompt = promptParts.join('\n\n');
 
+  if (options.revisionNote && options.revisionNote.trim().length > 0) {
+    prompt += `\n\nREVISION INSTRUCTIONS: ${options.revisionNote.trim()}\n- Keep identity, wardrobe, and overall style consistent.\n- Only change what the revision requests.\n- Do not add text or watermarks.`;
+  }
+
   // Negative Prompt (for image generation mainly)
   if (options.includeNegative) {
     prompt += `\n\nNEGATIVE PROMPT: blurry, low quality, distorted, bad anatomy, bad hands, text, watermark, logo, cartoon, 3d render, illustration.`;
@@ -282,10 +287,11 @@ export function buildEnhancedPrompt(
  */
 export function buildVideoMotionPrompt(
   scene: Scene,
-  config: ProjectConfig
+  config: ProjectConfig,
+  options: { revisionNote?: string } = {}
 ): string {
   // Use the enhanced prompt builder as the base to get all details
-  const basePrompt = buildEnhancedPrompt(scene, config, { forVideo: true });
+  const basePrompt = buildEnhancedPrompt(scene, config, { forVideo: true, revisionNote: options.revisionNote });
 
   const movement = MOVEMENT_PROMPTS[scene.cameraMovement];
   const angle = ANGLE_PROMPTS[scene.cameraAngle];
@@ -321,14 +327,41 @@ export function buildVideoMotionPrompt(
   }
 
   // Add audio cue if enabled - STRICT CHECK
+  const audioLines: string[] = [];
   if (config.audioEnabled) {
-    motionDescriptors.push('AUDIO: Ambient sound and foley matching the scene.');
+    const sceneAudio = scene.audio;
+    const projectMusic = config.audioConfig?.music;
+    const music = sceneAudio?.musicOverride
+      ? { ...(projectMusic || { enabled: true, style: '' }), ...sceneAudio.musicOverride }
+      : projectMusic;
+
+    audioLines.push('AUDIO:');
+    audioLines.push('- Include synchronized ambient sound and foley matching the scene.');
+    if (sceneAudio?.ambience?.trim()) audioLines.push(`- AMBIENCE: ${sceneAudio.ambience.trim()}`);
+    if (sceneAudio?.sfx?.trim()) audioLines.push(`- SFX: ${sceneAudio.sfx.trim()}`);
+
+    const dialogue = sceneAudio?.dialogue || [];
+    if (dialogue.length > 0) {
+      audioLines.push('- DIALOGUE:');
+      for (const line of dialogue) {
+        const speaker = (line.speaker || 'Speaker').trim();
+        const delivery = (line.delivery || '').trim();
+        const text = (line.text || '').trim();
+        if (!text) continue;
+        audioLines.push(`  - ${speaker}${delivery ? ` (${delivery})` : ''}: "${text}"`);
+      }
+    }
+
+    if (music?.enabled && music.style?.trim()) {
+      audioLines.push(`- MUSIC: ${music.style.trim()}${music.intensity ? ` (intensity: ${music.intensity})` : ''}`);
+    } else {
+      audioLines.push('- MUSIC: optional, only if it fits naturally (no overpowering score).');
+    }
   } else {
-    // Explicitly request NO audio if disabled, though models might ignore it, it helps intent.
-    // Veo sometimes generates audio anyway, but we can try to suppress.
-    // However, "silent" might result in a silent video file which is good.
-    motionDescriptors.push('AUDIO: Silent, no sound.');
+    audioLines.push('AUDIO: Silent, no sound.');
   }
+
+  motionDescriptors.push(audioLines.join('\n'));
   
   // Construct the prompt with higher weight on visual style and camera
   // We prepend "Cinematic Video" and append specific motion tags

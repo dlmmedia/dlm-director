@@ -9,6 +9,10 @@ import {
   SettingsIcon,
   PlusIcon,
   XIcon,
+  MoreIcon,
+  TrashIcon,
+  ChevronDownIcon,
+  SparkleIcon,
   ArrowUpIcon,
   ArrowDownIcon
 } from '@/components/Icons';
@@ -27,10 +31,12 @@ interface ProductionStepProps {
   generatingAllVideos: boolean;
   onGenerateAllVideos: () => void;
   onShowPlayer: () => void;
-  onGenerateImage: (sceneId: number) => void;
-  onGenerateVideo: (sceneId: number) => void;
+  onGenerateImage: (sceneId: number, revisionNote?: string) => void;
+  onGenerateVideo: (sceneId: number, revisionNote?: string) => void;
   onExtendVideo?: (sceneId: number) => void;
   onCancelGeneration?: (sceneId: number) => void;
+  onAddScene?: () => void;
+  onDeleteScene?: (sceneId: number) => void;
 }
 
 export default function ProductionStep({
@@ -42,14 +48,17 @@ export default function ProductionStep({
   onGenerateImage,
   onGenerateVideo,
   onExtendVideo,
-  onCancelGeneration
+  onCancelGeneration,
+  onAddScene,
+  onDeleteScene
 }: ProductionStepProps) {
   
   const [stitching, setStitching] = useState(false);
   const [stitchProgress, setStitchProgress] = useState(0);
   const [stitchStatus, setStitchStatus] = useState('');
   const [playingSceneId, setPlayingSceneId] = useState<number | null>(null);
-  const [expandedSceneId, setExpandedSceneId] = useState<number | null>(null);
+  const [settingsSceneId, setSettingsSceneId] = useState<number | null>(null);
+  const [menuSceneId, setMenuSceneId] = useState<number | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   
   // Safe play handling
@@ -127,6 +136,10 @@ export default function ProductionStep({
       setPlayingSceneId(sceneId);
   };
 
+  const settingsScene = settingsSceneId
+    ? config.scenes.find(s => s.id === settingsSceneId) || null
+    : null;
+
   return (
     <div className="w-full">
       <div className="w-full px-4 md:px-12 py-8 space-y-8">
@@ -149,6 +162,12 @@ export default function ProductionStep({
           <div className="flex items-center gap-6">
             {onUpdateConfig && (
               <div className="flex items-center gap-4">
+                {onAddScene && (
+                  <button onClick={onAddScene} className="btn-ghost">
+                    <PlusIcon />
+                    <span>Add Scene</span>
+                  </button>
+                )}
                 <label className="flex items-center gap-2 cursor-pointer bg-white/5 px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/30 transition-colors">
                   <input
                     type="checkbox"
@@ -264,7 +283,11 @@ export default function ProductionStep({
       {/* Scene Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {config.scenes.map((scene, idx) => (
-          <div key={scene.id} className="card-elevated overflow-hidden relative group flex flex-col h-full border-t-2 border-t-transparent hover:border-t-dlm-accent transition-all duration-300">
+          <div
+            key={scene.id}
+            className="card-elevated overflow-hidden relative group flex flex-col h-full border-t-2 border-t-transparent hover:border-t-dlm-accent transition-all duration-300"
+            onClick={() => setMenuSceneId(null)}
+          >
             {/* Status Badge - OSD Style */}
             <div className="absolute top-4 left-4 z-20 pointer-events-none">
               <div className={`px-3 py-1.5 rounded bg-black/80 backdrop-blur-md border border-white/10 font-mono text-[10px] font-bold tracking-widest flex items-center gap-2 shadow-lg ${
@@ -288,28 +311,6 @@ export default function ProductionStep({
                 {scene.status === 'video_ready' && 'REC COMPLETE'}
                 {scene.status === 'error' && 'SYSTEM ERROR'}
               </div>
-            </div>
-
-            {/* Quick Download Buttons */}
-            <div className="absolute top-4 right-4 z-20 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-x-2 group-hover:translate-x-0">
-               {scene.imageUrl && (
-                 <button 
-                  onClick={() => downloadFile(scene.imageUrl!, `scene_${scene.id}.png`)}
-                  className="p-2.5 bg-black/80 hover:bg-white text-white hover:text-black rounded-lg backdrop-blur-sm shadow-lg border border-white/10 transition-all"
-                  title="Download Image"
-                 >
-                   <SaveIcon />
-                 </button>
-               )}
-               {scene.videoUrl && (
-                 <button 
-                  onClick={() => downloadFile(scene.videoUrl!, `scene_${scene.id}.mp4`)}
-                  className="p-2.5 bg-black/80 hover:bg-white text-white hover:text-black rounded-lg backdrop-blur-sm shadow-lg border border-white/10 transition-all"
-                  title="Download Video"
-                 >
-                   <VideoIcon />
-                 </button>
-               )}
             </div>
 
             {/* Main Visual Area */}
@@ -362,56 +363,137 @@ export default function ProductionStep({
             </div>
 
             {/* Scene Info */}
-            <div className="p-6 flex flex-col flex-grow space-y-5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-dlm-accent font-bold font-mono text-xs tracking-wider bg-dlm-accent/10 px-2 py-1 rounded border border-dlm-accent/20">SCENE {String(idx + 1).padStart(2, '0')}</span>
-                  
-                  {/* Reorder Controls */}
-                   <div className="flex bg-white/5 rounded-lg border border-white/5">
-                      <button 
-                          onClick={() => handleMoveScene(idx, 'up')} 
-                          disabled={idx === 0}
-                          className="p-1.5 text-gray-500 hover:text-white disabled:opacity-20 hover:bg-white/10 rounded-l-lg transition-colors"
-                          title="Move Up"
-                      >
-                          <ArrowUpIcon /> 
-                      </button>
-                      <div className="w-px bg-white/10 my-1" />
-                      <button 
-                          onClick={() => handleMoveScene(idx, 'down')} 
-                          disabled={idx === config.scenes.length - 1}
-                          className="p-1.5 text-gray-500 hover:text-white disabled:opacity-20 hover:bg-white/10 rounded-r-lg transition-colors"
-                          title="Move Down"
-                      >
-                          <ArrowDownIcon />
-                      </button>
-                   </div>
+            <div className="p-7 flex flex-col flex-grow gap-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="shrink-0 text-dlm-accent font-bold font-mono text-xs tracking-wider bg-dlm-accent/10 px-2 py-1 rounded border border-dlm-accent/20">
+                    SCENE {String(idx + 1).padStart(2, '0')}
+                  </span>
+                  <span className="text-xs text-gray-500 font-mono tracking-wider shrink-0">{scene.durationEstimate}S</span>
+                </div>
 
+                {/* Card Menu */}
+                <div className="relative shrink-0">
                   <button
-                    onClick={() => setExpandedSceneId(expandedSceneId === scene.id ? null : scene.id)}
-                    className={`p-1.5 rounded-lg transition-colors ${expandedSceneId === scene.id ? 'bg-dlm-accent text-black' : 'hover:bg-white/10 text-gray-400 hover:text-white'}`}
-                    title="Video Generation Settings (References & Anchoring)"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuSceneId(menuSceneId === scene.id ? null : scene.id);
+                    }}
+                    className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white transition-colors"
+                    title="Scene actions"
+                    aria-haspopup="menu"
+                    aria-expanded={menuSceneId === scene.id}
                   >
-                    <SettingsIcon />
+                    <MoreIcon />
                   </button>
+
+                  <AnimatePresence>
+                    {menuSceneId === scene.id && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                        transition={{ duration: 0.12 }}
+                        className="absolute right-0 mt-2 w-56 rounded-xl border border-white/10 bg-black/90 backdrop-blur-md shadow-2xl z-30 overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                        role="menu"
+                      >
+                        <div className="px-3 py-2 text-[10px] font-mono tracking-widest uppercase text-gray-500 border-b border-white/10">
+                          Scene {idx + 1}
+                        </div>
+
+                        <div className="p-2 space-y-1">
+                          <button
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/10 transition-colors disabled:opacity-30"
+                            onClick={() => { handleMoveScene(idx, 'up'); setMenuSceneId(null); }}
+                            disabled={idx === 0}
+                            role="menuitem"
+                            title="Move scene up"
+                          >
+                            <ArrowUpIcon />
+                            <span>Move up</span>
+                          </button>
+                          <button
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/10 transition-colors disabled:opacity-30"
+                            onClick={() => { handleMoveScene(idx, 'down'); setMenuSceneId(null); }}
+                            disabled={idx === config.scenes.length - 1}
+                            role="menuitem"
+                            title="Move scene down"
+                          >
+                            <ArrowDownIcon />
+                            <span>Move down</span>
+                          </button>
+
+                          {onUpdateConfig && (
+                            <button
+                              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/10 transition-colors"
+                              onClick={() => { setSettingsSceneId(scene.id); setMenuSceneId(null); }}
+                              role="menuitem"
+                              title="Open video generation settings"
+                            >
+                              <SettingsIcon />
+                              <span>Settings</span>
+                            </button>
+                          )}
+
+                          {scene.imageUrl && (
+                            <button
+                              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/10 transition-colors"
+                              onClick={() => { downloadFile(scene.imageUrl!, `scene_${scene.id}.png`); setMenuSceneId(null); }}
+                              role="menuitem"
+                            >
+                              <SaveIcon />
+                              <span>Download image</span>
+                            </button>
+                          )}
+                          {scene.videoUrl && (
+                            <button
+                              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/10 transition-colors"
+                              onClick={() => { downloadFile(scene.videoUrl!, `scene_${scene.id}.mp4`); setMenuSceneId(null); }}
+                              role="menuitem"
+                            >
+                              <VideoIcon />
+                              <span>Download video</span>
+                            </button>
+                          )}
+
+                          {scene.videoUrl && onExtendVideo && (
+                            <button
+                              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/10 transition-colors disabled:opacity-30"
+                              onClick={() => { onExtendVideo(scene.id); setMenuSceneId(null); }}
+                              disabled={scene.status === 'generating_video'}
+                              role="menuitem"
+                            >
+                              <PlusIcon />
+                              <span>Extend video</span>
+                            </button>
+                          )}
+
+                          {onDeleteScene && (
+                            <>
+                              <div className="h-px bg-white/10 my-1" />
+                              <button
+                                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-red-300 hover:bg-red-500/10 transition-colors"
+                                onClick={() => {
+                                  if (confirm(`Delete Scene ${idx + 1}? This cannot be undone.`)) {
+                                    onDeleteScene(scene.id);
+                                  }
+                                  setMenuSceneId(null);
+                                }}
+                                role="menuitem"
+                              >
+                                <TrashIcon />
+                                <span>Delete scene</span>
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
-                <span className="text-xs text-gray-500 font-mono tracking-wider">{scene.durationEstimate}S</span>
               </div>
-              
-              {/* Detailed Settings Panel */}
-              {expandedSceneId === scene.id && onUpdateConfig && (
-                <div className="mb-4 bg-black/40 rounded-xl p-4 border border-white/10 animate-in fade-in slide-in-from-top-2 relative">
-                   <div className="absolute top-0 left-4 -translate-y-1/2 w-3 h-3 bg-black border-t border-l border-white/10 rotate-45 transform" />
-                   <VideoGenerationSettings 
-                      config={config} 
-                      scene={scene}
-                      onUpdateScene={handleUpdateScene}
-                      onUpdateConfig={onUpdateConfig}
-                   />
-                </div>
-              )}
-              
+
               <p className="text-gray-300 text-sm leading-relaxed min-h-[3rem]">{scene.narration}</p>
               
               {/* Cinematography tags */}
@@ -422,60 +504,149 @@ export default function ProductionStep({
                     </span>
                 ))}
               </div>
+
+              {/* Refine (collapsible to avoid cramped cards) */}
+              {(scene.imageUrl || scene.videoUrl) && (
+                <details className="rounded-xl border border-white/10 bg-black/20 overflow-hidden group">
+                  <summary className="cursor-pointer list-none px-4 py-3 flex items-center justify-between gap-3 hover:bg-white/5 transition-colors">
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-gray-200">Refine</div>
+                      <div className="text-[11px] text-gray-500 truncate">
+                        Notes for regeneration / re-rendering
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="text-[10px] font-mono tracking-widest text-gray-500 group-open:text-gray-300">
+                        {scene.imageRevisionNote || scene.videoRevisionNote ? 'EDITED' : 'ADD NOTE'}
+                      </div>
+                      <div className="text-gray-500 group-open:text-gray-300 transition-transform duration-200 group-open:rotate-180">
+                        <ChevronDownIcon />
+                      </div>
+                    </div>
+                  </summary>
+                  <div className="p-4 space-y-4 border-t border-white/10">
+                    {scene.imageUrl && (
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">
+                          Image note
+                        </label>
+                        <textarea
+                          value={scene.imageRevisionNote || ''}
+                          onChange={(e) => handleUpdateScene(scene.id, { imageRevisionNote: e.target.value })}
+                          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs placeholder:text-gray-600 resize-none"
+                          placeholder="e.g. lower camera angle; fix composition; reduce highlights; move subject left"
+                          rows={2}
+                        />
+                      </div>
+                    )}
+                    {scene.videoUrl && (
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">
+                          Video note
+                        </label>
+                        <textarea
+                          value={scene.videoRevisionNote || ''}
+                          onChange={(e) => handleUpdateScene(scene.id, { videoRevisionNote: e.target.value })}
+                          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs placeholder:text-gray-600 resize-none"
+                          placeholder="e.g. slower push-in; less shake; keep framing consistent; reduce brightness"
+                          rows={2}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </details>
+              )}
               
               {/* Action Buttons */}
-              <div className="mt-auto pt-4 flex gap-3">
-                <div className="flex-1 flex gap-2">
-                  {/* Cancel Image Generation Button */}
-                  {scene.status === 'generating_image' && onCancelGeneration && (
+              <div className="mt-auto pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="relative">
+                    {scene.status === 'generating_image' && onCancelGeneration && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onCancelGeneration(scene.id); }}
+                        className="absolute top-2 right-2 p-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 rounded-lg border border-red-500/20 transition-colors"
+                        title="Cancel image generation"
+                      >
+                        <XIcon />
+                      </button>
+                    )}
                     <button
-                      onClick={() => onCancelGeneration(scene.id)}
-                      className="px-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl border border-red-500/10 transition-colors"
-                      title="Cancel Image Generation"
+                      onClick={(e) => { e.stopPropagation(); onGenerateImage(scene.id, scene.imageRevisionNote); }}
+                      disabled={scene.status === 'generating_image'}
+                      className={`w-full text-left p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all disabled:opacity-50 min-h-[84px] ${
+                        scene.status === 'generating_image' && onCancelGeneration ? 'pr-12' : ''
+                      }`}
+                      title={scene.imageUrl ? 'Regenerate image' : 'Generate image'}
                     >
-                      <XIcon />
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-lg bg-black/30 border border-white/10 flex items-center justify-center text-white shrink-0">
+                          {scene.status === 'generating_image' ? (
+                            <LoadingSpinner size={16} color="currentColor" />
+                          ) : (
+                            <SparkleIcon />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold uppercase tracking-wide text-white leading-tight">
+                            {scene.status === 'generating_image'
+                              ? 'Generating…'
+                              : (scene.imageUrl ? 'Regenerate image' : 'Generate image')}
+                          </div>
+                          <div className="text-[11px] text-gray-500 leading-snug">
+                            Uses refine note (optional)
+                          </div>
+                        </div>
+                      </div>
                     </button>
-                  )}
-                  <button 
-                    onClick={() => onGenerateImage(scene.id)}
-                    disabled={scene.status === 'generating_image'}
-                    className="flex-1 py-3 text-xs font-bold uppercase tracking-wide border border-white/10 text-gray-400 hover:text-white hover:border-white/20 hover:bg-white/5 rounded-xl transition-all disabled:opacity-50"
-                  >
-                    {scene.status === 'generating_image' ? 'Generating...' : (scene.imageUrl ? 'Regen Image' : 'Gen Image')}
-                  </button>
-                </div>
-                <div className="flex-1 flex gap-2">
-                  {/* Cancel Video Generation Button */}
-                  {scene.status === 'generating_video' && onCancelGeneration && (
-                     <button
-                      onClick={() => onCancelGeneration(scene.id)}
-                      className="px-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl border border-red-500/10 transition-colors"
-                      title="Cancel Video Generation"
-                    >
-                      <XIcon />
-                    </button>
-                  )}
-                   <button 
-                    onClick={() => onGenerateVideo(scene.id)}
-                    disabled={!scene.imageUrl || (scene.status === 'generating_video' && !scene.videoUrl)}
-                    className={`flex-1 py-3 text-xs font-bold uppercase tracking-wide rounded-xl transition-all shadow-lg disabled:opacity-30 disabled:shadow-none ${
-                      scene.videoUrl 
-                        ? 'bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20'
-                        : 'bg-gradient-to-r from-dlm-accent to-yellow-500 text-black hover:brightness-110 border-0'
-                    }`}
-                  >
-                    {scene.videoUrl ? 'Re-Render' : (scene.status === 'generating_video' ? 'Rendering...' : 'Render Video')}
-                  </button>
-                  {scene.videoUrl && onExtendVideo && (
+                  </div>
+
+                  <div className="relative">
+                    {scene.status === 'generating_video' && onCancelGeneration && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onCancelGeneration(scene.id); }}
+                        className="absolute top-2 right-2 p-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 rounded-lg border border-red-500/20 transition-colors"
+                        title="Cancel video generation"
+                      >
+                        <XIcon />
+                      </button>
+                    )}
                     <button
-                      onClick={() => onExtendVideo(scene.id)}
-                      disabled={scene.status === 'generating_video'}
-                      className="px-3 bg-white/10 hover:bg-white/20 text-white rounded-xl border border-white/10 transition-colors"
-                      title="Extend Video"
+                      onClick={(e) => { e.stopPropagation(); onGenerateVideo(scene.id, scene.videoRevisionNote); }}
+                      disabled={!scene.imageUrl || (scene.status === 'generating_video' && !scene.videoUrl)}
+                      className={`w-full text-left p-4 rounded-xl transition-all disabled:opacity-30 min-h-[84px] ${
+                        scene.videoUrl
+                          ? 'border border-green-500/20 bg-green-500/10 hover:bg-green-500/20'
+                          : 'bg-gradient-to-r from-dlm-accent to-yellow-500 text-black hover:brightness-110 border-0'
+                      } ${scene.status === 'generating_video' && onCancelGeneration ? 'pr-12' : ''}`}
+                      title={scene.videoUrl ? 'Re-render video' : 'Render video'}
                     >
-                      <PlusIcon />
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 ${
+                            scene.videoUrl
+                              ? 'bg-black/30 border-green-500/20 text-green-200'
+                              : 'bg-black/20 border-black/20 text-black'
+                          }`}
+                        >
+                          {scene.status === 'generating_video' ? (
+                            <LoadingSpinner size={16} color="currentColor" />
+                          ) : (
+                            <VideoIcon />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className={`text-xs font-bold uppercase tracking-wide leading-tight ${scene.videoUrl ? 'text-green-200' : 'text-black'}`}>
+                            {scene.videoUrl
+                              ? 'Re-render video'
+                              : (scene.status === 'generating_video' ? 'Rendering…' : 'Render video')}
+                          </div>
+                          <div className={`text-[11px] leading-snug ${scene.videoUrl ? 'text-green-200/60' : 'text-black/60'}`}>
+                            Requires an image
+                          </div>
+                        </div>
+                      </div>
                     </button>
-                  )}
+                  </div>
                 </div>
               </div>
               
@@ -517,6 +688,51 @@ export default function ProductionStep({
                 alt="Preview"
                 className="max-w-full max-h-[90vh] object-contain"
               />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Scene Settings Modal */}
+      <AnimatePresence>
+        {settingsScene && onUpdateConfig && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 p-4 sm:p-8"
+            onClick={() => setSettingsSceneId(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-4xl max-h-[90vh] rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-black/70 backdrop-blur-md"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-white/10">
+                <div className="min-w-0">
+                  <div className="text-xs font-mono tracking-widest text-gray-500 uppercase">Scene Settings</div>
+                  <div className="text-sm text-white truncate">
+                    Scene {config.scenes.findIndex(s => s.id === settingsScene.id) + 1} — References, anchoring, audio
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSettingsSceneId(null)}
+                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white transition-colors"
+                  title="Close"
+                >
+                  <XIcon />
+                </button>
+              </div>
+              <div className="p-5 overflow-y-auto max-h-[calc(90vh-64px)]">
+                <VideoGenerationSettings
+                  config={config}
+                  scene={settingsScene}
+                  onUpdateScene={handleUpdateScene}
+                  onUpdateConfig={onUpdateConfig}
+                />
+              </div>
             </motion.div>
           </motion.div>
         )}

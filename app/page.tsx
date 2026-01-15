@@ -9,6 +9,7 @@ import {
   TrendingTopic,
   CharacterProfile,
   createDefaultConfig,
+  createDefaultScene,
   VideoModel,
 } from '@/types';
 import { 
@@ -349,7 +350,30 @@ export default function Home() {
     setErrorMessage(null);
   }, []);
 
-  const handleGenerateImage = async (sceneId: number) => {
+  const handleAddScene = useCallback(() => {
+    setConfig(prev => {
+      const maxId = prev.scenes.reduce((acc, s) => Math.max(acc, s.id), 0);
+      const nextId = maxId + 1;
+      const newScene = createDefaultScene(nextId);
+      return { ...prev, scenes: [...prev.scenes, newScene] };
+    });
+  }, []);
+
+  const handleDeleteScene = useCallback((sceneId: number) => {
+    // Abort any in-flight generation for this scene
+    const controller = abortControllersRef.current.get(sceneId);
+    if (controller) {
+      controller.abort();
+      abortControllersRef.current.delete(sceneId);
+    }
+
+    setConfig(prev => ({
+      ...prev,
+      scenes: prev.scenes.filter(s => s.id !== sceneId)
+    }));
+  }, []);
+
+  const handleGenerateImage = async (sceneId: number, revisionNote?: string) => {
     console.log(`[handleGenerateImage] Starting for scene ${sceneId}`);
     
     // Cancel only this scene's previous request (if any)
@@ -396,7 +420,8 @@ export default function Home() {
         currentConfig.aspectRatio,
         currentConfig,
         scene,
-        projectId
+        projectId,
+        revisionNote
       );
       
       // Check if cancelled after API call - only reset status, don't throw
@@ -475,7 +500,7 @@ export default function Home() {
     }
   };
 
-  const handleGenerateVideo = async (sceneId: number) => {
+  const handleGenerateVideo = async (sceneId: number, revisionNote?: string) => {
     // Get the current scene
     const currentConfig = configRef.current;
     const scene = currentConfig.scenes.find(s => s.id === sceneId);
@@ -493,7 +518,8 @@ export default function Home() {
         currentConfig.aspectRatio,
         currentConfig,
         scene,
-        currentProjectId
+        currentProjectId,
+        revisionNote
       );
       
       // Upload video to Vercel Blob for persistent storage
@@ -839,6 +865,8 @@ export default function Home() {
               onAddCharacter={handleAddCharacter}
               onUpdateCharacter={handleUpdateCharacter}
               onRemoveCharacter={handleRemoveCharacter}
+              onAddScene={handleAddScene}
+              onDeleteScene={handleDeleteScene}
               onBack={handleBack}
               onNext={handleApproveStoryboard}
             />
@@ -854,6 +882,8 @@ export default function Home() {
               onGenerateVideo={handleGenerateVideo}
               onExtendVideo={handleExtendVideo}
               onCancelGeneration={handleCancelGeneration}
+              onAddScene={handleAddScene}
+              onDeleteScene={handleDeleteScene}
             />
           )}
         </main>

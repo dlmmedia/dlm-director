@@ -270,6 +270,32 @@ export interface VideoGenerationConfig {
   personGeneration?: 'allow_adult' | 'dont_allow';
 }
 
+// --- AUDIO SYSTEM (VEO 3.x) ---
+export type MusicIntensity = 'low' | 'med' | 'high';
+
+export interface AudioDialogueLine {
+  speaker: string;
+  text: string;
+  delivery?: string; // e.g. "whispered, tense"
+}
+
+export interface AudioMusicConfig {
+  enabled: boolean;
+  style: string; // e.g. "cinematic orchestral", "lofi", "ambient drone"
+  intensity?: MusicIntensity;
+}
+
+export interface AudioConfig {
+  music?: AudioMusicConfig;
+}
+
+export interface SceneAudioConfig {
+  ambience?: string; // e.g. "room tone, distant traffic"
+  sfx?: string; // e.g. "footsteps on gravel, door creak"
+  dialogue?: AudioDialogueLine[];
+  musicOverride?: Partial<AudioMusicConfig>; // optional per-scene override
+}
+
 // --- SCENE (enhanced) ---
 export interface Scene {
   id: number;
@@ -281,6 +307,12 @@ export interface Scene {
   imageUrl?: string;
   videoUrl?: string;
   errorMsg?: string;
+
+  // Regeneration feedback (user-driven refinement)
+  imageRevisionNote?: string;
+  videoRevisionNote?: string;
+  revisionHistory?: { type: 'image' | 'video'; note: string; at: string }[];
+  audio?: SceneAudioConfig;
   
   // Cinematography
   shotType: ShotType;
@@ -365,6 +397,7 @@ export interface ProjectConfig {
   voiceoverEnabled: boolean;
   audioEnabled?: boolean;
   musicStyle?: string;
+  audioConfig?: AudioConfig;
 
   // Video Model
   videoModel?: VideoModel;
