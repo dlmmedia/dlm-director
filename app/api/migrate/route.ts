@@ -2,8 +2,23 @@ import { NextResponse } from 'next/server';
 import { list } from '@vercel/blob';
 import { getPool } from '@/lib/db';
 
+export const runtime = 'nodejs';
+
+const INDEX_PATH = 'projects/index.json';
+
+function clampInt(value: unknown, min: number, max: number, fallback: number) {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(n)));
+}
+
+function blobBaseUrlFromAnyBlobUrl(url: string): string | null {
+  const match = url.match(/^(https:\/\/[^/]+)\//);
+  return match?.[1] ?? null;
+}
+
 // Migration endpoint to import projects from Vercel Blob to Neon DB
-export async function POST() {
+export async function POST(request: Request) {
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return NextResponse.json({ error: 'BLOB_READ_WRITE_TOKEN not configured' }, { status: 500 });
   }
@@ -14,22 +29,74 @@ export async function POST() {
   const errors: string[] = [];
 
   try {
-    // List all blobs to find project data files
-    const { blobs } = await list({ prefix: 'projects/' });
-    
-    // Find all data.json files (these contain project data)
-    const dataFiles = blobs.filter(b => b.pathname.endsWith('/data.json'));
-    
-    console.log(`Found ${dataFiles.length} project data files in Blob`);
+    const url = new URL(request.url);
+    const limit = clampInt(url.searchParams.get('limit'), 1, 200, 25);
+    const offset = clampInt(url.searchParams.get('offset'), 0, 1_000_000, 0);
 
-    for (const blob of dataFiles) {
+    // Prefer using the projects index to avoid listing the entire bucket (can be slow).
+    const { blobs: indexCandidates } = await list({ prefix: INDEX_PATH, limit: 10 });
+    const indexBlob = indexCandidates.find((b) => b.pathname === INDEX_PATH) ?? indexCandidates[0];
+    const baseUrl = indexBlob?.url ? blobBaseUrlFromAnyBlobUrl(indexBlob.url) : null;
+
+    let projectIds: string[] = [];
+    if (indexBlob?.url) {
       try {
-        // Extract project ID from path: projects/{id}/data.json
-        const pathParts = blob.pathname.split('/');
-        const projectId = pathParts[1];
-        
-        if (!projectId) continue;
+        const indexRes = await fetch(indexBlob.url, { cache: 'no-store' });
+        if (indexRes.ok) {
+          const indexData = await indexRes.json();
+          projectIds = Array.isArray(indexData?.projects)
+            ? indexData.projects.map((p: any) => p?.id).filter((id: any): id is string => typeof id === 'string' && id.length > 0)
+            : [];
+        }
+      } catch (e) {
+        console.warn('Could not fetch/parse projects index.json, falling back to listing.', e);
+      }
+    }
 
+    // Fallback: list data.json blobs under projects/ (may be expensive).
+    if (projectIds.length === 0) {
+      const { blobs } = await list({ prefix: 'projects/' });
+      const dataFiles = blobs.filter((b) => b.pathname.endsWith('/data.json'));
+      projectIds = dataFiles
+        .map((b) => b.pathname.split('/')[1])
+        .filter((id): id is string => !!id);
+    }
+
+    const total = projectIds.length;
+    const slice = projectIds.slice(offset, offset + limit);
+    console.log(`Migrating projects ${offset}..${offset + slice.length - 1} (limit=${limit}) out of ${total}`);
+
+    async function fetchProjectData(projectId: string): Promise<any | null> {
+      const projectPath = `projects/${projectId}/data.json`;
+
+      // Fast path: predictable URL (newer writes use addRandomSuffix:false)
+      if (baseUrl) {
+        try {
+          const res = await fetch(`${baseUrl}/${projectPath}`, { cache: 'no-store' });
+          if (res.ok) {
+            const text = await res.text();
+            return text ? JSON.parse(text) : null;
+          }
+        } catch (_) {
+          // fall through
+        }
+      }
+
+      // Slow path: list exact prefix for legacy random-suffix blobs
+      try {
+        const { blobs } = await list({ prefix: projectPath, limit: 1 });
+        if (blobs.length === 0) return null;
+        const res = await fetch(blobs[0].url, { cache: 'no-store' });
+        if (!res.ok) return null;
+        const text = await res.text();
+        return text ? JSON.parse(text) : null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    for (const projectId of slice) {
+      try {
         // Check if already in DB
         const existing = await client.query('SELECT id FROM projects WHERE id = $1', [projectId]);
         if (existing.rows.length > 0) {
@@ -38,20 +105,11 @@ export async function POST() {
           continue;
         }
 
-        // Fetch project data from Blob
-        const response = await fetch(blob.url, { cache: 'no-store' });
-        if (!response.ok) {
-          errors.push(`Failed to fetch ${projectId}: ${response.status}`);
+        const projectData = await fetchProjectData(projectId);
+        if (!projectData) {
+          errors.push(`Missing data.json for ${projectId}`);
           continue;
         }
-
-        const text = await response.text();
-        if (!text) {
-          errors.push(`Empty data for ${projectId}`);
-          continue;
-        }
-
-        const projectData = JSON.parse(text);
         
         // Insert into Neon
         await client.query(`
@@ -112,38 +170,27 @@ export async function POST() {
         console.log(`Imported project ${projectId}: ${projectData.title}`);
         imported++;
       } catch (e) {
-        console.error(`Error importing project from ${blob.pathname}:`, e);
-        errors.push(`${blob.pathname}: ${e}`);
+        console.error(`Error importing project ${projectId}:`, e);
+        errors.push(`${projectId}: ${e}`);
       }
     }
 
-    // Also check for index.json in blob
-    const indexBlobs = blobs.filter(b => b.pathname === 'projects/index.json');
-    if (indexBlobs.length > 0) {
-      try {
-        const indexRes = await fetch(indexBlobs[0].url, { cache: 'no-store' });
-        const indexData = await indexRes.json();
-        
-        // Update thumbnails from index if available
-        for (const proj of indexData.projects || []) {
-          if (proj.thumbnail) {
-            await client.query(
-              'UPDATE projects SET thumbnail = $1 WHERE id = $2 AND thumbnail IS NULL',
-              [proj.thumbnail, proj.id]
-            );
-          }
-        }
-      } catch (e) {
-        console.warn('Could not process index.json:', e);
-      }
-    }
+    const nextOffset = offset + slice.length;
+    const done = nextOffset >= total;
 
     return NextResponse.json({
       success: true,
       imported,
       skipped,
       errors: errors.length > 0 ? errors : undefined,
-      message: `Migration complete. Imported: ${imported}, Skipped: ${skipped}`
+      total,
+      offset,
+      limit,
+      nextOffset: done ? null : nextOffset,
+      done,
+      message: done
+        ? `Migration complete. Imported: ${imported}, Skipped: ${skipped}`
+        : `Batch complete. Imported: ${imported}, Skipped: ${skipped}. Next offset: ${nextOffset}`
     });
 
   } catch (error) {
