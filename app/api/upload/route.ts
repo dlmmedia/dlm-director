@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
         typeof base64Data === 'string' &&
         (base64Data.startsWith('http://') ||
           base64Data.startsWith('https://') ||
+          base64Data.startsWith('/') ||
           base64Data.startsWith('/api/') ||
           base64Data.startsWith('/data/'))
       ) {

@@ -437,6 +437,7 @@ export default function Home() {
         typeof imageData === 'string' &&
         (imageData.startsWith('http://') ||
           imageData.startsWith('https://') ||
+          imageData.startsWith('/') ||
           imageData.startsWith('/api/') ||
           imageData.startsWith('/data/'));
 

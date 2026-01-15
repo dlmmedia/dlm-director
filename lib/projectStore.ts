@@ -144,6 +144,7 @@ export async function uploadSceneImage(
     if (
       imageData.startsWith('http://') ||
       imageData.startsWith('https://') ||
+      imageData.startsWith('/') ||
       imageData.startsWith('/api/') ||
       imageData.startsWith('/data/')
     ) {

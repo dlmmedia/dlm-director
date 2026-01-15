@@ -6,6 +6,7 @@
 // ========================================
 
 import { GoogleGenAI } from "@google/genai";
+import { headers } from 'next/headers';
 import { uploadImage as uploadImageToBlob, uploadVideo as uploadVideoToBlob } from "@/lib/storageService";
 import {
   Scene,
@@ -32,6 +33,62 @@ import {
 
 // API Key from environment variables (configure in Vercel dashboard or .env.local)
 const API_KEY = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.API_KEY || '';
+
+async function getRequestOriginFromHeaders(): Promise<string | null> {
+  try {
+    const h = await headers();
+    const host = h.get('x-forwarded-host') || h.get('host');
+    if (!host) return null;
+    const proto = h.get('x-forwarded-proto') || 'https';
+    return `${proto}://${host}`;
+  } catch {
+    // `headers()` may be unavailable in some runtimes/contexts.
+    return null;
+  }
+}
+
+function getEnvOriginFallback(): string | null {
+  const raw =
+    process.env.APP_ORIGIN ||
+    process.env.BASE_URL ||
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+    (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null) ||
+    null;
+
+  if (!raw) return null;
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveExternalUrl(input: string): Promise<string> {
+  // Guard against the exact failure you reported.
+  if (input.startsWith('https://undefined/') || input.startsWith('http://undefined/')) {
+    throw new Error(
+      `Invalid URL hostname "undefined": ${input}. This usually means your site base URL env var is missing in production.`
+    );
+  }
+
+  // Allow absolute URLs as-is.
+  if (input.startsWith('http://') || input.startsWith('https://')) return input;
+
+  // Convert relative URLs to absolute using request headers (preferred) or env fallback.
+  if (input.startsWith('/')) {
+    const origin = (await getRequestOriginFromHeaders()) || getEnvOriginFallback();
+    if (!origin) {
+      throw new Error(
+        `Cannot resolve relative URL "${input}" on the server (missing request host). Set APP_ORIGIN (e.g. "https://yourdomain.com") or ensure proxy forwards host headers.`
+      );
+    }
+    return new URL(input, origin).toString();
+  }
+
+  // Anything else (e.g. data: URIs, raw base64) is returned as-is.
+  return input;
+}
 
 // Helper to get AI instance
 const getAi = () => {
@@ -250,14 +307,7 @@ export const generateSceneVideo = async (
                  // If the URL is a Vercel Blob URL (https://...), it works.
                  // If it is a relative path like '/logo.png', we might need to construct the full URL, but typically stored images are full URLs.
                  
-                 let fetchUrl = imageBase64;
-                 if (fetchUrl.startsWith('/')) {
-                     // Best effort for local files in public folder, but risky in serverless
-                     // Skipping complex relative logic for now, assuming valid http url or public accessible
-                     // If it's a relative path in Next.js, we might need process.env.NEXT_PUBLIC_BASE_URL
-                     // But let's assume standard http(s) for uploaded files.
-                     console.warn('[GeminiService] Relative URL detected. Fetch might fail if base URL is not handled.');
-                 }
+                 const fetchUrl = await resolveExternalUrl(imageBase64);
 
                  const res = await fetch(fetchUrl);
                  if (!res.ok) throw new Error(`Failed to fetch image: ${res.statusText}`);
@@ -289,7 +339,7 @@ export const generateSceneVideo = async (
                 if (refUrl.startsWith('data:')) {
                     refBytes = refUrl.split(',')[1];
                 } else {
-                    const res = await fetch(refUrl);
+                    const res = await fetch(await resolveExternalUrl(refUrl));
                     const buf = await res.arrayBuffer();
                     refBytes = Buffer.from(buf).toString('base64');
                     // simple mime detect
