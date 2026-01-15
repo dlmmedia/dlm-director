@@ -18,7 +18,8 @@ const nextConfig: NextConfig = {
       // Allow all origins for development (server actions work from any host)
     },
   },
-  serverExternalPackages: ['@google/genai'],
+  // Keep native/binary dependencies external to avoid bundling path issues
+  serverExternalPackages: ['@google/genai', 'ffmpeg-static'],
   // Removed strict headers that block cross-origin media loading
   async headers() {
     return [

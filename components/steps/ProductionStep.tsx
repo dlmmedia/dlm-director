@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ProjectConfig, VideoModel, Scene } from '@/types';
+import { saveAs } from 'file-saver';
 import { 
   LoadingSpinner, 
   VideoIcon, 
@@ -22,7 +23,9 @@ import {
   downloadFile, 
   downloadImagesZip, 
   downloadVideosZip,
-  stitchVideos 
+  stitchVideos,
+  type StitchClipSpec,
+  type StitchOptions
 } from '@/lib/download';
 
 interface ProductionStepProps {
@@ -56,6 +59,12 @@ export default function ProductionStep({
   const [stitching, setStitching] = useState(false);
   const [stitchProgress, setStitchProgress] = useState(0);
   const [stitchStatus, setStitchStatus] = useState('');
+  const [showStitchDialog, setShowStitchDialog] = useState(false);
+  const [stitchAudioEnabled, setStitchAudioEnabled] = useState(true);
+  const [postBrightness, setPostBrightness] = useState(0); // -1..1
+  const [postContrast, setPostContrast] = useState(1); // 0..2
+  const [postSaturation, setPostSaturation] = useState(1); // 0..3
+  const [clipEdits, setClipEdits] = useState<Record<number, Omit<StitchClipSpec, 'url'>>>({});
   const [playingSceneId, setPlayingSceneId] = useState<number | null>(null);
   const [settingsSceneId, setSettingsSceneId] = useState<number | null>(null);
   const [menuSceneId, setMenuSceneId] = useState<number | null>(null);
@@ -106,19 +115,18 @@ export default function ProductionStep({
     }
   };
 
-  const handleStitchAndDownload = async () => {
+  const handleStitchAndDownload = async (options: StitchOptions) => {
     setStitching(true);
     setStitchProgress(0);
     setStitchStatus('Initializing...');
     try {
-      const blob = await stitchVideos(config.scenes, (progress, msg) => {
+      const blob = await stitchVideos(config.scenes, options, (progress, msg) => {
         setStitchProgress(progress);
         setStitchStatus(msg);
       });
       
       if (blob) {
-        const url = URL.createObjectURL(blob);
-        await downloadFile(url, `${config.title || 'film'}_stitched.mp4`);
+        saveAs(blob, `${config.title || 'film'}_stitched.mp4`);
         setStitchStatus('Complete!');
       }
     } catch (e: any) {
@@ -131,6 +139,17 @@ export default function ProductionStep({
       }, 3000);
     }
   };
+
+  const videoScenes = config.scenes.filter((s) => !!s.videoUrl);
+  const estimatedDurationSec = videoScenes.reduce((acc, s) => {
+    const edit = clipEdits[s.id] || {};
+    const base = s.durationEstimate || 0;
+    const speed = typeof edit.speed === 'number' && edit.speed > 0 ? edit.speed : 1;
+    const trimStart = typeof edit.trimStartSec === 'number' ? edit.trimStartSec : 0;
+    const trimEnd = typeof edit.trimEndSec === 'number' ? edit.trimEndSec : undefined;
+    const trimmed = trimEnd !== undefined ? Math.max(0, trimEnd - trimStart) : Math.max(0, base - trimStart);
+    return acc + (trimmed / speed);
+  }, 0);
   
   const handlePlay = (sceneId: number) => {
       setPlayingSceneId(sceneId);
@@ -209,7 +228,7 @@ export default function ProductionStep({
             </div>
             
             <button 
-              onClick={handleStitchAndDownload}
+              onClick={() => setShowStitchDialog(true)}
               disabled={videosReady < 2 || stitching}
               className={`relative btn-ghost ${stitching ? 'opacity-100 cursor-not-allowed' : ''}`}
               title="Download stitched video"
@@ -688,6 +707,302 @@ export default function ProductionStep({
                 alt="Preview"
                 className="max-w-full max-h-[90vh] object-contain"
               />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Stitch Options Modal */}
+      <AnimatePresence>
+        {showStitchDialog && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[75] flex items-center justify-center bg-black/90 p-4 sm:p-8"
+            onClick={() => !stitching && setShowStitchDialog(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.97, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.97, opacity: 0 }}
+              className="w-full max-w-5xl max-h-[90vh] rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-black/70 backdrop-blur-md"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-white/10">
+                <div className="min-w-0">
+                  <div className="text-xs font-mono tracking-widest text-gray-500 uppercase">Stitch & Download</div>
+                  <div className="text-sm text-white truncate">
+                    {config.title || 'Film'} — {videoScenes.length} clips • Est. {Math.round(estimatedDurationSec)}s
+                  </div>
+                </div>
+                <button
+                  onClick={() => !stitching && setShowStitchDialog(false)}
+                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white transition-colors disabled:opacity-50"
+                  title="Close"
+                  disabled={stitching}
+                >
+                  <XIcon />
+                </button>
+              </div>
+
+              <div className="p-5 overflow-y-auto max-h-[calc(90vh-64px)] space-y-6">
+                {/* Global options */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  <div className="p-4 rounded-xl border border-white/10 bg-white/5">
+                    <div className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Audio</div>
+                    <label className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-gray-200">Include clip audio</span>
+                      <input
+                        type="checkbox"
+                        checked={stitchAudioEnabled}
+                        onChange={(e) => setStitchAudioEnabled(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-500 text-dlm-accent focus:ring-dlm-accent bg-transparent"
+                        disabled={stitching}
+                      />
+                    </label>
+                    <div className="mt-2 text-[11px] text-gray-500">
+                      If a clip has no audio track, silence is used for that segment.
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl border border-white/10 bg-white/5 lg:col-span-2">
+                    <div className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Post-processing</div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <div className="flex items-center justify-between text-[11px] text-gray-400 mb-1">
+                          <span>Brightness</span>
+                          <span className="font-mono">{postBrightness.toFixed(2)}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={-1}
+                          max={1}
+                          step={0.01}
+                          value={postBrightness}
+                          onChange={(e) => setPostBrightness(parseFloat(e.target.value))}
+                          className="w-full"
+                          disabled={stitching}
+                        />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between text-[11px] text-gray-400 mb-1">
+                          <span>Contrast</span>
+                          <span className="font-mono">{postContrast.toFixed(2)}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={2}
+                          step={0.01}
+                          value={postContrast}
+                          onChange={(e) => setPostContrast(parseFloat(e.target.value))}
+                          className="w-full"
+                          disabled={stitching}
+                        />
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between text-[11px] text-gray-400 mb-1">
+                          <span>Saturation</span>
+                          <span className="font-mono">{postSaturation.toFixed(2)}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={3}
+                          step={0.01}
+                          value={postSaturation}
+                          onChange={(e) => setPostSaturation(parseFloat(e.target.value))}
+                          className="w-full"
+                          disabled={stitching}
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-2 text-[11px] text-gray-500">
+                      Neutral is brightness 0, contrast 1, saturation 1.
+                    </div>
+                  </div>
+                </div>
+
+                {/* Per-clip options */}
+                <div className="rounded-xl border border-white/10 overflow-hidden">
+                  <div className="px-4 py-3 bg-black/40 border-b border-white/10">
+                    <div className="text-xs font-bold uppercase tracking-widest text-gray-400">Per-clip edits</div>
+                  </div>
+                  <div className="divide-y divide-white/10">
+                    {videoScenes.map((scene, idx) => {
+                      const edit = clipEdits[scene.id] || {};
+                      const speed = typeof edit.speed === 'number' ? edit.speed : 1;
+                      const trimStart = typeof edit.trimStartSec === 'number' ? edit.trimStartSec : 0;
+                      const trimEnd = typeof edit.trimEndSec === 'number' ? edit.trimEndSec : undefined;
+                      const fadeIn = typeof edit.fadeInSec === 'number' ? edit.fadeInSec : 0;
+                      const fadeOut = typeof edit.fadeOutSec === 'number' ? edit.fadeOutSec : 0;
+
+                      return (
+                        <div key={scene.id} className="p-4">
+                          <div className="flex items-center justify-between gap-4 flex-wrap">
+                            <div className="min-w-0">
+                              <div className="text-sm text-white font-medium truncate">Scene {idx + 1}</div>
+                              <div className="text-[11px] text-gray-500 truncate">{scene.videoUrl}</div>
+                            </div>
+                            <div className="text-[11px] text-gray-500 font-mono">
+                              speed {speed.toFixed(2)}x
+                            </div>
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-1 lg:grid-cols-4 gap-3">
+                            <div className="lg:col-span-2">
+                              <div className="flex items-center justify-between text-[11px] text-gray-400 mb-1">
+                                <span>Speed</span>
+                                <span className="font-mono">{speed.toFixed(2)}x</span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <input
+                                  type="range"
+                                  min={0.25}
+                                  max={2}
+                                  step={0.01}
+                                  value={speed}
+                                  onChange={(e) => {
+                                    const v = parseFloat(e.target.value);
+                                    setClipEdits((prev) => ({ ...prev, [scene.id]: { ...prev[scene.id], speed: v } }));
+                                  }}
+                                  className="w-full"
+                                  disabled={stitching}
+                                />
+                                <input
+                                  type="number"
+                                  value={speed}
+                                  min={0.25}
+                                  max={2}
+                                  step={0.01}
+                                  onChange={(e) => {
+                                    const v = parseFloat(e.target.value || '1');
+                                    setClipEdits((prev) => ({ ...prev, [scene.id]: { ...prev[scene.id], speed: Number.isFinite(v) ? v : 1 } }));
+                                  }}
+                                  className="w-24 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs font-mono"
+                                  disabled={stitching}
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-[11px] text-gray-400 mb-1">Trim start (s)</div>
+                              <input
+                                type="number"
+                                value={trimStart}
+                                min={0}
+                                step={0.1}
+                                onChange={(e) => {
+                                  const v = parseFloat(e.target.value || '0');
+                                  setClipEdits((prev) => ({
+                                    ...prev,
+                                    [scene.id]: { ...prev[scene.id], trimStartSec: Number.isFinite(v) ? v : 0 },
+                                  }));
+                                }}
+                                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs"
+                                disabled={stitching}
+                              />
+                            </div>
+                            <div>
+                              <div className="text-[11px] text-gray-400 mb-1">Trim end (s)</div>
+                              <input
+                                type="number"
+                                value={trimEnd ?? ''}
+                                min={0}
+                                step={0.1}
+                                placeholder="(full)"
+                                onChange={(e) => {
+                                  const raw = e.target.value;
+                                  const v = raw === '' ? undefined : parseFloat(raw);
+                                  setClipEdits((prev) => ({ ...prev, [scene.id]: { ...prev[scene.id], trimEndSec: v } }));
+                                }}
+                                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs"
+                                disabled={stitching}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <div className="text-[11px] text-gray-400 mb-1">Fade in (s)</div>
+                              <input
+                                type="number"
+                                value={fadeIn}
+                                min={0}
+                                max={5}
+                                step={0.1}
+                                onChange={(e) => {
+                                  const v = parseFloat(e.target.value || '0');
+                                  setClipEdits((prev) => ({ ...prev, [scene.id]: { ...prev[scene.id], fadeInSec: Number.isFinite(v) ? v : 0 } }));
+                                }}
+                                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs"
+                                disabled={stitching}
+                              />
+                            </div>
+                            <div>
+                              <div className="text-[11px] text-gray-400 mb-1">Fade out (s)</div>
+                              <input
+                                type="number"
+                                value={fadeOut}
+                                min={0}
+                                max={5}
+                                step={0.1}
+                                onChange={(e) => {
+                                  const v = parseFloat(e.target.value || '0');
+                                  setClipEdits((prev) => ({ ...prev, [scene.id]: { ...prev[scene.id], fadeOutSec: Number.isFinite(v) ? v : 0 } }));
+                                }}
+                                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs"
+                                disabled={stitching}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center justify-between gap-3 pt-2">
+                  <div className="text-xs text-gray-500">
+                    {stitching ? (stitchStatus || `${Math.round(stitchProgress)}%`) : 'Ready'}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      className="btn-ghost"
+                      onClick={() => {
+                        setClipEdits({});
+                        setStitchAudioEnabled(true);
+                        setPostBrightness(0);
+                        setPostContrast(1);
+                        setPostSaturation(1);
+                      }}
+                      disabled={stitching}
+                      title="Reset options"
+                    >
+                      Reset
+                    </button>
+                    <button
+                      className="btn-primary"
+                      disabled={stitching || videoScenes.length < 2}
+                      onClick={async () => {
+                        const options: StitchOptions = {
+                          title: config.title || 'film',
+                          audio: { enabled: stitchAudioEnabled },
+                          post: { brightness: postBrightness, contrast: postContrast, saturation: postSaturation },
+                          clips: videoScenes.map((s) => ({
+                            url: s.videoUrl!,
+                            ...(clipEdits[s.id] || {}),
+                          })),
+                        };
+                        await handleStitchAndDownload(options);
+                      }}
+                    >
+                      {stitching ? 'Stitching…' : 'Stitch & Download'}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </motion.div>
           </motion.div>
         )}

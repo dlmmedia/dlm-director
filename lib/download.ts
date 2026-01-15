@@ -1,8 +1,37 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
-import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { Scene } from '@/types';
+
+export type StitchAudioOptions = {
+  enabled: boolean;
+};
+
+export type StitchClipSpec = {
+  url: string;
+  // seconds
+  trimStartSec?: number;
+  trimEndSec?: number;
+  // playback rate: 0.25–2.0 (server clamps)
+  speed?: number;
+  // seconds
+  fadeInSec?: number;
+  fadeOutSec?: number;
+};
+
+export type StitchPostSpec = {
+  // ffmpeg eq filter ranges (server clamps)
+  // brightness: -1..1, contrast: 0..2, saturation: 0..3
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
+};
+
+export type StitchOptions = {
+  title?: string;
+  audio?: StitchAudioOptions;
+  clips?: StitchClipSpec[];
+  post?: StitchPostSpec;
+};
 
 // Helper to download a single file
 export const downloadFile = async (url: string, filename: string) => {
@@ -73,124 +102,54 @@ export const downloadVideosZip = async (scenes: Scene[], projectTitle: string) =
 // Stitch videos using ffmpeg.wasm
 export const stitchVideos = async (
   scenes: Scene[], 
+  options: StitchOptions,
   onProgress: (progress: number, message: string) => void
 ): Promise<Blob | null> => {
-  // Check for Cross-Origin Isolation
-  if (typeof window !== 'undefined' && !window.crossOriginIsolated) {
-      const errorMsg = "Browser is not cross-origin isolated. COOP/COEP headers required.";
-      console.error(errorMsg);
-      throw new Error(errorMsg);
-  }
+  const videoScenes = scenes.filter((s) => !!s.videoUrl);
+  if (videoScenes.length < 2) return null;
 
-  const videoScenes = scenes.filter(s => s.videoUrl);
-  if (videoScenes.length === 0) {
-    return null;
-  }
+  try {
+    onProgress(0, 'Preparing...');
+    onProgress(10, 'Stitching on server...');
 
-  const ffmpeg = new FFmpeg();
-  
-  // Log all ffmpeg messages
-  ffmpeg.on('log', ({ message }) => {
-    console.log('[FFmpeg]', message);
-  });
-  
-  // Track progress
-  ffmpeg.on('progress', ({ progress, time }) => {
-    // Progress is 0-1. Convert to 50-90 range for the stitching phase
-    onProgress(50 + (progress * 40), 'Stitching videos...');
-  });
+    const clips: StitchClipSpec[] = options?.clips?.length
+      ? options.clips
+      : videoScenes.map((s) => ({
+          url: s.videoUrl!,
+        }));
 
-    try {
-    onProgress(0, 'Loading FFmpeg...');
-    
-    // Use relative paths - let the browser resolve them against the public folder
-    await ffmpeg.load({
-      coreURL: '/ffmpeg/ffmpeg-core.js',
-      wasmURL: '/ffmpeg/ffmpeg-core.wasm',
+    const res = await fetch('/api/stitch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: options?.title,
+        audio: options?.audio,
+        post: options?.post,
+        clips,
+      }),
     });
 
-    onProgress(10, 'Downloading clips...');
-    
-    // Write all video files to ffmpeg filesystem
-    const inputFiles: string[] = [];
-    
-    for (let i = 0; i < videoScenes.length; i++) {
-      const scene = videoScenes[i];
-      if (!scene.videoUrl) continue;
-      
-      const filename = `input${i}.mp4`;
-      
+    if (!res.ok) {
+      let msg = `Stitch request failed (${res.status})`;
       try {
-        onProgress(10 + Math.round((i / videoScenes.length) * 30), `Downloading clip ${i + 1}/${videoScenes.length}...`);
-        const data = await fetchFile(scene.videoUrl);
-        await ffmpeg.writeFile(filename, data);
-        inputFiles.push(filename);
-      } catch (fetchError: any) {
-        console.error(`Failed to load video for scene ${scene.id}:`, fetchError);
-        // Continue but skip this file? Or fail? 
-        // Failing is probably safer as the output would be incomplete
-        throw new Error(`Failed to download video for scene ${scene.id}`);
+        const data = await res.json();
+        if (data?.error) msg = data.error;
+      } catch (_) {
+        try {
+          const text = await res.text();
+          if (text) msg = text;
+        } catch (_) {}
       }
+      throw new Error(msg);
     }
 
-    if (inputFiles.length === 0) {
-      throw new Error("No video files could be loaded.");
-    }
-
-    onProgress(40, 'Generating concat list...');
-    
-    // Create concat file list
-    const fileListContent = inputFiles.map(f => `file '${f}'`).join('\n');
-    await ffmpeg.writeFile('list.txt', fileListContent);
-
-    onProgress(50, 'Stitching videos...');
-
-    // Attempt 1: Copy (Fast, but requires identical codecs)
-    console.log('[FFmpeg] Attempting Stream Copy...');
-    let returnCode = await ffmpeg.exec(['-f', 'concat', '-safe', '0', '-i', 'list.txt', '-c', 'copy', 'output.mp4']);
-    
-    // Attempt 2: Re-encode (Slow, but robust)
-    if (returnCode !== 0) {
-        console.warn('[FFmpeg] Stream Copy failed. Falling back to re-encoding...');
-        onProgress(50, 'Optimizing video (this may take a while)...');
-        
-        // Delete partial output if any
-        try { await ffmpeg.deleteFile('output.mp4'); } catch (e) {}
-        
-        // Re-encode with ultrafast preset for speed
-        returnCode = await ffmpeg.exec([
-            '-f', 'concat', 
-            '-safe', '0', 
-            '-i', 'list.txt', 
-            '-c:v', 'libx264', 
-            '-preset', 'ultrafast', 
-            '-c:a', 'aac', 
-            'output.mp4'
-        ]);
-    }
-
-    if (returnCode !== 0) {
-        throw new Error(`FFmpeg exited with code ${returnCode}`);
-    }
-    
-    onProgress(90, 'Finalizing...');
-    
-    const data = await ffmpeg.readFile('output.mp4');
-    const blob = new Blob([data], { type: 'video/mp4' });
-    
+    onProgress(90, 'Downloading film...');
+    const blob = await res.blob();
+    onProgress(100, 'Complete!');
     return blob;
-
   } catch (error: any) {
     console.error('Stitching failed:', error);
     onProgress(0, `Error: ${error.message || 'Stitching failed'}`);
     throw error;
-  } finally {
-    // Attempt to terminate if possible
-    try {
-      // @ts-ignore
-      if (ffmpeg.terminate) ffmpeg.terminate();
-    } catch (e) {
-      // ignore
-    }
   }
 };
