@@ -31,7 +31,9 @@ import {
   saveProject,
   uploadSceneImage,
   uploadSceneVideo,
-  cancelPendingSave
+  cancelPendingSave,
+  flushPendingSave,
+  hasPendingSave
 } from '@/lib/projectStore';
 import { SaveIcon, UserIcon, LoadingSpinner } from '@/components/Icons';
 
@@ -88,21 +90,48 @@ export default function Home() {
 
   // Auto-save effect
   useEffect(() => {
-    if (currentProjectId && config) {
-      const currentConfigStr = JSON.stringify(config);
-      
-      // Skip if config hasn't changed from what we last loaded/saved
-      if (currentConfigStr === lastSavedConfigRef.current) {
-        return;
-      }
+    const currentConfigStr = JSON.stringify(config);
+    
+    // Skip if config hasn't changed from what we last loaded/saved
+    if (currentConfigStr === lastSavedConfigRef.current) {
+      return;
+    }
 
+    // Check if config has meaningful content worth saving
+    const hasContent = config.userPrompt?.trim() || 
+                       config.title !== 'New Project' ||
+                       config.scenes?.length > 0 ||
+                       config.characters?.length > 0;
+
+    if (currentProjectId) {
+      // We have a project, just save
       setSaveStatus('unsaved');
       debouncedSave(currentProjectId, config);
-      
-      // Update the reference to current
       lastSavedConfigRef.current = currentConfigStr;
-      
       const timer = setTimeout(() => setSaveStatus('saved'), 2500);
+      return () => clearTimeout(timer);
+    } else if (hasContent) {
+      // No project yet but we have content worth saving - create one
+      setSaveStatus('unsaved');
+      const createAndSave = async () => {
+        try {
+          const title = config.title || 'New Project';
+          const project = await createProjectAPI(title);
+          if (project) {
+            console.log('Auto-created project for unsaved content:', project.id);
+            setCurrentProjectId(project.id);
+            const newConfig = { ...config, title: project.title };
+            await saveProject(project.id, newConfig);
+            lastSavedConfigRef.current = JSON.stringify(newConfig);
+            setSaveStatus('saved');
+          }
+        } catch (e) {
+          console.error('Failed to auto-create project:', e);
+        }
+      };
+      
+      // Debounce project creation to avoid multiple rapid creations
+      const timer = setTimeout(createAndSave, 3000);
       return () => clearTimeout(timer);
     }
   }, [config, currentProjectId]);
@@ -111,6 +140,24 @@ export default function Home() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [step]);
+
+  // Warn user before leaving if there are unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasPendingSave() || saveStatus === 'unsaved') {
+        // Try to flush the pending save (may not complete before page unloads)
+        flushPendingSave().catch(console.error);
+        
+        // Show browser's default "unsaved changes" dialog
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [saveStatus]);
 
   // Handlers
   const handleNext = () => {
@@ -122,9 +169,6 @@ export default function Home() {
   };
 
   const handleProjectSelect = async (id: string) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/38be5295-f513-45bf-9b9a-128482a00dc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/page.tsx:123',message:'handleProjectSelect',data:{id},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H_PROJECT_SELECT'})}).catch(()=>{});
-    // #endregion
     setSaveStatus('saving');
     try {
       const project = await fetchProject(id);

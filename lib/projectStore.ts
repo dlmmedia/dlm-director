@@ -37,15 +37,9 @@ export async function fetchProjects(): Promise<ProjectListItem[]> {
       data = { projects: [] };
     }
 
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/38be5295-f513-45bf-9b9a-128482a00dc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/projectStore.ts:31',message:'fetchProjects response',data:{count: data.projects?.length, data},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
-    // #endregion
     return data.projects || [];
   } catch (error) {
     console.error('Error fetching projects:', error);
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/38be5295-f513-45bf-9b9a-128482a00dc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/projectStore.ts:36',message:'fetchProjects error',data:{error: String(error)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
-    // #endregion
     return [];
   }
 }
@@ -217,6 +211,7 @@ export async function uploadSceneVideo(
 // --- DEBOUNCED AUTO-SAVE ---
 
 let saveTimeout: NodeJS.Timeout | null = null;
+let pendingSave: { projectId: string; config: ProjectConfig } | null = null;
 
 export function debouncedSave(
   projectId: string,
@@ -227,10 +222,19 @@ export function debouncedSave(
     clearTimeout(saveTimeout);
   }
 
+  // Track the pending save data
+  pendingSave = { projectId, config };
+
   saveTimeout = setTimeout(async () => {
     console.log('Auto-saving project:', projectId);
-    await saveProject(projectId, config);
+    const result = await saveProject(projectId, config);
+    if (result) {
+      console.log('✅ Auto-save completed for:', projectId);
+    } else {
+      console.error('❌ Auto-save failed for:', projectId);
+    }
     saveTimeout = null;
+    pendingSave = null;
   }, delayMs);
 }
 
@@ -239,4 +243,27 @@ export function cancelPendingSave(): void {
     clearTimeout(saveTimeout);
     saveTimeout = null;
   }
+  pendingSave = null;
+}
+
+// Flush any pending save immediately (for beforeunload)
+export async function flushPendingSave(): Promise<boolean> {
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+  }
+  
+  if (pendingSave) {
+    console.log('Flushing pending save for:', pendingSave.projectId);
+    const result = await saveProject(pendingSave.projectId, pendingSave.config);
+    pendingSave = null;
+    return result;
+  }
+  
+  return true;
+}
+
+// Check if there's a pending save
+export function hasPendingSave(): boolean {
+  return pendingSave !== null;
 }

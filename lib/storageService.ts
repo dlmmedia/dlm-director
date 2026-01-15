@@ -169,12 +169,15 @@ export async function saveProject(projectId: string, data: any): Promise<string>
     const title = data.title || data.config?.title || 'Untitled Project';
     const scenes = data.scenes || data.config?.scenes || [];
 
+    // Ensure config has the correct title synced
+    const config = { ...(data.config || {}), title };
+
     // Update project metadata
     await client.query(`
         UPDATE projects 
         SET title = $1, config = $2, updated_at = $3
         WHERE id = $4
-    `, [title, data.config || {}, now, projectId]);
+    `, [title, config, now, projectId]);
 
     // Upsert Scenes
     // First, we might need to clear old scenes or handle updates carefully.

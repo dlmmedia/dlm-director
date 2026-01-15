@@ -79,3 +79,46 @@ export async function DELETE(
     );
   }
 }
+
+// PATCH: Rename project (update title only)
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const data = await request.json();
+    const { title } = data;
+    
+    if (!title || typeof title !== 'string') {
+      return NextResponse.json(
+        { error: 'Title is required' },
+        { status: 400 }
+      );
+    }
+
+    // Get existing project to preserve config
+    const existing = await getProject(id);
+    if (!existing) {
+      return NextResponse.json(
+        { error: 'Project not found' },
+        { status: 404 }
+      );
+    }
+
+    // Update with new title
+    await saveProject(id, { 
+      ...existing, 
+      title,
+      config: { ...existing.config, title } 
+    });
+    
+    return NextResponse.json({ success: true, title });
+  } catch (error) {
+    console.error('Error renaming project:', error);
+    return NextResponse.json(
+      { error: 'Failed to rename project' },
+      { status: 500 }
+    );
+  }
+}
