@@ -106,26 +106,10 @@ async function upsertProjectToNeon(client: any, projectId: string, projectData: 
       ]
     );
 
-    if (scene.imageUrl) {
-      await client.query(
-        `
-        INSERT INTO assets (id, project_id, scene_id, type, url)
-        VALUES ($1, $2, $3, 'image', $4)
-        ON CONFLICT DO NOTHING
-        `,
-        [`img-${projectId}-${scene.id}`, projectId, scene.id, scene.imageUrl]
-      );
-    }
-    if (scene.videoUrl) {
-      await client.query(
-        `
-        INSERT INTO assets (id, project_id, scene_id, type, url)
-        VALUES ($1, $2, $3, 'video', $4)
-        ON CONFLICT DO NOTHING
-        `,
-        [`vid-${projectId}-${scene.id}`, projectId, scene.id, scene.videoUrl]
-      );
-    }
+    // Note: Assets are NOT inserted here because:
+    // 1. URLs are already stored in scene config JSONB (imageUrl, videoUrl fields)
+    // 2. assets.scene_id FK references scenes.id (auto-generated), not sequence_order
+    // The assets table is used for cleanup/tracking only when uploading new media
   }
 }
 
