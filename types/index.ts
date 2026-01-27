@@ -296,6 +296,23 @@ export interface SceneAudioConfig {
   musicOverride?: Partial<AudioMusicConfig>; // optional per-scene override
 }
 
+// --- TIMESTAMPED SEGMENT (VEO 3.1 Multi-Shot Sequences) ---
+// Used for timestamp prompting within a single generation
+// Format: [00:00-00:02] Description...
+export interface TimestampedSegment {
+  startTime: number; // in seconds (e.g., 0)
+  endTime: number;   // in seconds (e.g., 2)
+  description: string; // Shot description for this segment
+  shotType?: ShotType;
+  cameraAngle?: CameraAngle;
+  cameraMovement?: CameraMovement;
+  audio?: {
+    dialogue?: AudioDialogueLine[];
+    sfx?: string;
+    ambience?: string;
+  };
+}
+
 // --- SCENE (enhanced) ---
 export interface Scene {
   id: number;
@@ -344,6 +361,10 @@ export interface Scene {
   // Transitions
   transitionIn?: TransitionType;
   transitionOut?: TransitionType;
+
+  // Timestamped Segments (VEO 3.1 Multi-Shot Sequences)
+  // For creating multi-shot sequences within a single generation
+  timestampedSegments?: TimestampedSegment[];
 }
 
 // --- TRANSITIONS ---
@@ -815,21 +836,73 @@ export function createDefaultConfig(): ProjectConfig {
   };
 }
 
+/**
+ * BUILD CHARACTER PROMPT SEGMENT
+ * Follows Meta Framework template for consistency:
+ * [NAME/ROLE], a [AGE] [ETHNICITY] [GENDER] with [HAIR_DETAILS], [EYE_COLOR] eyes, 
+ * [FACIAL_FEATURES], [BUILD], wearing [CLOTHING], with [ACCESSORIES], [EMOTIONAL_STATE]
+ */
 export function buildCharacterPromptSegment(char: CharacterProfile): string {
-  const parts = [
-    char.physicalDescription,
-    `${char.age} years old`,
-    `${char.hairColor} ${char.hairStyle} hair`,
-    `${char.eyeColor} eyes`,
-    char.skinTone && `${char.skinTone} skin`,
-    char.bodyType,
-    char.distinguishingFeatures && `with ${char.distinguishingFeatures}`,
-    char.currentOutfit && `wearing ${char.currentOutfit}`,
-    char.accessories && `with ${char.accessories}`,
-    char.emotionalState && `looking ${char.emotionalState}`
-  ].filter(Boolean);
+  const segments: string[] = [];
   
-  return parts.join(', ');
+  // 1. NAME/ROLE (always first for identity anchoring)
+  if (char.name) {
+    segments.push(char.name);
+  }
+  
+  // 2. AGE, ETHNICITY (skinTone), GENDER composite
+  const identityParts: string[] = [];
+  if (char.age) identityParts.push(char.age);
+  if (char.skinTone) identityParts.push(char.skinTone);
+  if (char.gender) identityParts.push(char.gender);
+  if (identityParts.length > 0) {
+    segments.push(`a ${identityParts.join(' ')}`);
+  }
+  
+  // 3. HAIR_DETAILS (color + style)
+  const hairParts: string[] = [];
+  if (char.hairColor) hairParts.push(char.hairColor);
+  if (char.hairStyle) hairParts.push(char.hairStyle);
+  if (hairParts.length > 0) {
+    segments.push(`with ${hairParts.join(' ')} hair`);
+  }
+  
+  // 4. EYE_COLOR
+  if (char.eyeColor) {
+    segments.push(`${char.eyeColor} eyes`);
+  }
+  
+  // 5. FACIAL_FEATURES / DISTINGUISHING_FEATURES
+  if (char.distinguishingFeatures) {
+    segments.push(char.distinguishingFeatures);
+  }
+  
+  // 6. BUILD / BODY_TYPE
+  if (char.bodyType) {
+    segments.push(char.bodyType);
+  }
+  
+  // 7. PHYSICAL_DESCRIPTION (additional details)
+  if (char.physicalDescription) {
+    segments.push(char.physicalDescription);
+  }
+  
+  // 8. CLOTHING
+  if (char.currentOutfit) {
+    segments.push(`wearing ${char.currentOutfit}`);
+  }
+  
+  // 9. ACCESSORIES
+  if (char.accessories) {
+    segments.push(`with ${char.accessories}`);
+  }
+  
+  // 10. EMOTIONAL_STATE (always last for current scene context)
+  if (char.emotionalState) {
+    segments.push(`looking ${char.emotionalState}`);
+  }
+  
+  return segments.join(', ');
 }
 
 export function buildCinematographyPromptSegment(scene: Scene): string {

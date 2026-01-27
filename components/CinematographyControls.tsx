@@ -64,8 +64,8 @@ const TimerIcon = () => (
 );
 
 export const CinematographyControls: React.FC<Props> = ({ scene, onChange, compact = false }) => {
-  const inputClass = "w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-white text-xs focus:border-dlm-accent focus:ring-1 focus:ring-dlm-accent/30 outline-none transition-all appearance-none cursor-pointer hover:border-white/[0.15]";
-  const labelClass = "block text-[10px] text-gray-500 uppercase tracking-wider font-medium mb-1.5";
+  const inputClass = "w-full bg-gray-50 dark:bg-white/[0.03] border border-gray-200 dark:border-white/[0.08] rounded-lg px-3 py-2 text-gray-900 dark:text-white text-base focus:border-dlm-accent focus:ring-1 focus:ring-dlm-accent/30 outline-none transition-all appearance-none cursor-pointer hover:border-gray-300 dark:hover:border-white/[0.15]";
+  const labelClass = "block text-xs text-gray-600 dark:text-gray-500 uppercase tracking-wider font-medium mb-1.5";
   
   const selectStyles = {
     backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236B7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
@@ -78,7 +78,7 @@ export const CinematographyControls: React.FC<Props> = ({ scene, onChange, compa
   if (compact) {
     return (
       <motion.div 
-        className="grid grid-cols-4 gap-2 p-3 bg-white/[0.02] rounded-xl border border-white/[0.06]"
+        className="grid grid-cols-4 gap-2 p-3 bg-gray-50 dark:bg-white/[0.02] rounded-xl border border-gray-200 dark:border-white/[0.06]"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
       >
@@ -140,14 +140,14 @@ export const CinematographyControls: React.FC<Props> = ({ scene, onChange, compa
 
   return (
     <motion.div 
-      className="space-y-5 p-5 bg-white/[0.02] rounded-xl border border-white/[0.06]"
+      className="space-y-5 p-5 bg-gray-50 dark:bg-white/[0.02] rounded-xl border border-gray-200 dark:border-white/[0.06]"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
       {/* Shot & Composition */}
       <div>
-        <h4 className="text-xs font-semibold text-dlm-accent flex items-center gap-2 mb-4">
+        <h4 className="text-sm font-semibold text-dlm-accent flex items-center gap-2 mb-4">
           <span className="w-6 h-6 rounded-md bg-dlm-accent/20 flex items-center justify-center">
             <CameraIcon />
           </span>
@@ -185,7 +185,7 @@ export const CinematographyControls: React.FC<Props> = ({ scene, onChange, compa
 
       {/* Lens & Focus */}
       <div>
-        <h4 className="text-xs font-semibold text-blue-400 flex items-center gap-2 mb-4">
+        <h4 className="text-sm font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-2 mb-4">
           <span className="w-6 h-6 rounded-md bg-blue-500/20 flex items-center justify-center">
             <LensIcon />
           </span>
@@ -223,7 +223,7 @@ export const CinematographyControls: React.FC<Props> = ({ scene, onChange, compa
 
       {/* Camera Movement */}
       <div>
-        <h4 className="text-xs font-semibold text-green-400 flex items-center gap-2 mb-4">
+        <h4 className="text-sm font-semibold text-green-600 dark:text-green-400 flex items-center gap-2 mb-4">
           <span className="w-6 h-6 rounded-md bg-green-500/20 flex items-center justify-center">
             <MovementIcon />
           </span>
@@ -243,7 +243,7 @@ export const CinematographyControls: React.FC<Props> = ({ scene, onChange, compa
 
       {/* Lighting */}
       <div>
-        <h4 className="text-xs font-semibold text-yellow-400 flex items-center gap-2 mb-4">
+        <h4 className="text-sm font-semibold text-yellow-600 dark:text-yellow-400 flex items-center gap-2 mb-4">
           <span className="w-6 h-6 rounded-md bg-yellow-500/20 flex items-center justify-center">
             <LightIcon />
           </span>
@@ -281,7 +281,7 @@ export const CinematographyControls: React.FC<Props> = ({ scene, onChange, compa
 
       {/* Transitions */}
       <div>
-        <h4 className="text-xs font-semibold text-purple-400 flex items-center gap-2 mb-4">
+        <h4 className="text-sm font-semibold text-purple-600 dark:text-purple-400 flex items-center gap-2 mb-4">
           <span className="w-6 h-6 rounded-md bg-purple-500/20 flex items-center justify-center">
             <TransitionIcon />
           </span>

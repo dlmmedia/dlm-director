@@ -29,6 +29,13 @@ import {
 import {
   buildEnhancedPrompt,
   buildVideoMotionPrompt,
+  buildVeo3VideoPrompt,
+  buildTimestampedPrompt,
+  hasTimestampedSegments,
+  getVeo3NegativePrompt,
+  validateVideoPrompt,
+  getRecommendedDuration,
+  isAudioSupportedModel,
 } from "./promptBuilder";
 
 // API Key from environment variables (configure in Vercel dashboard or .env.local)
@@ -272,12 +279,37 @@ export const generateSceneVideo = async (
 
     const ai = getAi();
 
-    // Build motion-optimized prompt for Veo with explicit context
+    // Build Veo 3.1 optimized prompt using the 5-part formula from Meta Framework
     let finalPrompt: string;
     if (config && scene) {
-      finalPrompt = buildVideoMotionPrompt(scene, config, { revisionNote });
+      // Check if scene has timestamped segments for multi-shot sequences
+      if (hasTimestampedSegments(scene)) {
+        finalPrompt = buildTimestampedPrompt(
+          scene.timestampedSegments!, 
+          config, 
+          { includeAudio: config.audioEnabled }
+        );
+        console.log('[GeminiService] Using timestamped multi-shot prompt');
+      } else {
+        // Use the new Veo 3.1 5-part formula prompt builder
+        finalPrompt = buildVeo3VideoPrompt(scene, config, { revisionNote });
+      }
+      
+      // Log validation warnings if any
+      const validation = validateVideoPrompt(scene, config);
+      if (!validation.isValid) {
+        console.warn('[GeminiService] Video prompt validation warnings:', validation.warnings);
+        console.log('[GeminiService] Suggestions:', validation.suggestions);
+      }
+      
+      // Log recommended duration
+      const recommended = getRecommendedDuration(scene);
+      if (scene.durationEstimate > recommended.duration) {
+        console.warn(`[GeminiService] Duration recommendation: ${recommended.duration}s (${recommended.reason})`);
+      }
     } else {
-      finalPrompt = `Cinematic Video. ${prompt}`;
+      // Fallback for simple prompts
+      finalPrompt = `Cinematic video. ${prompt}. High quality, smooth motion, temporal consistency.`;
     }
 
     console.log(`[GeminiService] Generating Video. Model: ${config?.videoModel || VideoModel.VEO_3_1}`);
@@ -358,8 +390,7 @@ export const generateSceneVideo = async (
 
     // Determine Model
     const modelId = config?.videoModel || VideoModel.VEO_3_1;
-    const isVeo3x = typeof modelId === 'string' && modelId.startsWith('veo-3');
-    const generateAudio = Boolean(config?.audioEnabled) && isVeo3x;
+    const generateAudio = Boolean(config?.audioEnabled) && isAudioSupportedModel(modelId);
 
     console.log(`[GeminiService] Using Video Model: ${modelId}`);
     console.log(`[GeminiService] generateAudio flag: ${generateAudio}`);
@@ -500,9 +531,12 @@ export const extendVideo = async (
       // Map aspect ratio to a supported value
       const validAspectRatio = mapToSupportedAspectRatio(config?.aspectRatio);
       
+      // Build Veo 3.1 optimized extension prompt
+      const extensionPrompt = `Cinematic video continuation. ${prompt}. Maintain visual consistency, smooth motion, temporal continuity.${config?.audioEnabled ? '' : ''}`;
+      
       const requestBase: any = {
         model: modelId,
-        prompt: `Cinematic extension. ${prompt}${config?.audioEnabled ? '' : '\n\nAUDIO: Silent, no sound.'}`,
+        prompt: extensionPrompt,
         // @ts-ignore - Hypothetical input structure for extension
         video: {
           videoBytes,
@@ -911,4 +945,128 @@ function mapLightSource(value: string | undefined): LightSource {
     'MIXED': LightSource.MIXED
   };
   return map[value || ''] || LightSource.DAYLIGHT;
+}
+
+// --- PROMPT ENHANCEMENT ---
+// Enhances prompts using AI to make them more detailed and cinematic
+export interface EnhancePromptContext {
+  type: 'concept' | 'visual' | 'image_refine' | 'video_refine';
+  scene?: Partial<Scene>;
+  config?: Partial<ProjectConfig>;
+}
+
+export const enhancePrompt = async (
+  prompt: string,
+  context: EnhancePromptContext
+): Promise<string> => {
+  return withRetry(async () => {
+    const ai = getAi();
+    
+    // Build context-aware system prompts based on type
+    let systemPrompt = '';
+    let contextDetails = '';
+    
+    // Build context details from scene/config
+    if (context.scene) {
+      const s = context.scene;
+      contextDetails += `\n\nScene Context:
+- Shot Type: ${s.shotType || 'Not specified'}
+- Camera Angle: ${s.cameraAngle || 'Not specified'}
+- Camera Movement: ${s.cameraMovement || 'Not specified'}
+- Focal Length: ${s.focalLength || 'Not specified'}
+- Depth of Field: ${s.depthOfField || 'Not specified'}
+- Lighting Style: ${s.lightingStyle || 'Not specified'}
+- Light Source: ${s.lightSource || 'Not specified'}`;
+    }
+    
+    if (context.config) {
+      const c = context.config;
+      contextDetails += `\n\nProject Context:
+- Category: ${c.category || 'Not specified'}
+- Style: ${c.style || 'Not specified'}
+- Aspect Ratio: ${c.aspectRatio || 'Not specified'}
+- Default Camera: ${c.defaultCamera || 'Not specified'}
+- Default Lens: ${c.defaultLens || 'Not specified'}
+- Color Palette: ${c.defaultColorPalette || 'Not specified'}
+- Global Style: ${c.globalStyle || 'Not specified'}`;
+    }
+    
+    switch (context.type) {
+      case 'concept':
+        systemPrompt = `You are a creative director specializing in cinematic video production. Your task is to enhance a video concept/idea to make it more vivid, detailed, and production-ready.
+
+Take the user's initial concept and expand it with:
+1. Richer visual descriptions
+2. Specific mood and atmosphere details
+3. Character and setting enhancements
+4. Cinematic moments and key visual beats
+5. Emotional progression and narrative arc
+
+Keep the enhanced version concise but impactful. Maintain the original intent while elevating the creative vision.${contextDetails}`;
+        break;
+        
+      case 'visual':
+        systemPrompt = `You are a cinematographer and visual prompt engineer. Your task is to enhance a visual prompt for AI image/video generation.
+
+Take the user's visual description and enhance it with:
+1. Specific cinematic framing and composition details
+2. Lighting descriptors (quality, direction, color temperature)
+3. Atmosphere and mood keywords
+4. Texture and material details
+5. Professional cinematography terminology
+6. Color palette and contrast specifications
+
+The output should be optimized for AI image generation models. Keep it under 300 words but highly detailed.${contextDetails}`;
+        break;
+        
+      case 'image_refine':
+        systemPrompt = `You are an AI image generation specialist. The user wants to regenerate an image with specific refinements.
+
+Enhance the user's refinement notes to be more precise and actionable for the AI model:
+1. Be specific about what to change vs. what to keep
+2. Use clear directional language (more/less, increase/decrease)
+3. Reference composition elements precisely
+4. Include lighting and color adjustments if relevant
+5. Maintain consistency with the original visual intent
+
+Keep the refinement concise but comprehensive.${contextDetails}`;
+        break;
+        
+      case 'video_refine':
+        systemPrompt = `You are a video generation specialist. The user wants to re-render a video with specific refinements.
+
+Enhance the user's refinement notes for video regeneration:
+1. Be specific about motion and movement changes
+2. Address pacing and timing adjustments
+3. Include camera movement refinements
+4. Reference consistency and temporal coherence
+5. Specify any visual style adjustments
+
+Keep the refinement actionable and precise for video AI models.${contextDetails}`;
+        break;
+    }
+    
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash',
+      contents: [{
+        role: 'user',
+        parts: [{ text: `${systemPrompt}\n\n---\n\nOriginal prompt to enhance:\n"${prompt}"\n\n---\n\nProvide ONLY the enhanced prompt text, no explanations or preamble.` }]
+      }]
+    });
+
+    // @ts-ignore
+    const text = response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    
+    // Clean up the response - remove quotes if wrapped
+    let enhanced = text.trim();
+    if (enhanced.startsWith('"') && enhanced.endsWith('"')) {
+      enhanced = enhanced.slice(1, -1);
+    }
+    if (enhanced.startsWith("'") && enhanced.endsWith("'")) {
+      enhanced = enhanced.slice(1, -1);
+    }
+    
+    console.log(`[GeminiService] Enhanced prompt (${context.type}): ${enhanced.substring(0, 100)}...`);
+    return enhanced;
+  }, 2, 1000);
 }

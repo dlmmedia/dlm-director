@@ -19,17 +19,30 @@ export async function getProjectsIndex(): Promise<ProjectsIndex> {
   try {
     const client = await getPool().connect();
     try {
+      // Only return projects that have meaningful content:
+      // - Has at least one scene, OR
+      // - Has a non-default title AND has user prompt content
       const result = await client.query(`
-        SELECT id, title, updated_at, thumbnail 
-        FROM projects 
-        ORDER BY updated_at DESC
+        SELECT p.id, p.title, p.updated_at, p.thumbnail, p.created_at
+        FROM projects p
+        WHERE 
+          -- Has scenes
+          (SELECT COUNT(*) FROM scenes WHERE project_id = p.id) > 0
+          OR
+          -- Has non-default title AND has user prompt content
+          (
+            p.title NOT IN ('Untitled Project', 'New Project', '')
+            AND p.config->>'userPrompt' IS NOT NULL 
+            AND p.config->>'userPrompt' != ''
+          )
+        ORDER BY p.updated_at DESC
       `);
       
       const projects = result.rows.map(row => ({
         id: row.id,
         title: row.title,
         updatedAt: row.updated_at.toISOString(),
-        createdAt: row.updated_at.toISOString(), // fallback
+        createdAt: row.created_at ? row.created_at.toISOString() : row.updated_at.toISOString(),
         thumbnail: row.thumbnail
       }));
 

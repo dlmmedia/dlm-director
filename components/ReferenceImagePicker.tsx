@@ -131,7 +131,7 @@ export const ReferenceImagePicker: React.FC<ReferenceImagePickerProps> = ({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium text-gray-300">
+        <label className="text-base font-medium text-gray-700 dark:text-gray-300">
           {label} <span className="text-gray-500">({selectedRefs.length}/{maxRefs})</span>
         </label>
       </div>
@@ -140,7 +140,7 @@ export const ReferenceImagePicker: React.FC<ReferenceImagePickerProps> = ({
       {selectedRefs.length > 0 && (
         <div className="grid grid-cols-3 gap-2 mb-4">
           {selectedRefs.map((ref) => (
-            <div key={ref.id} className="relative group aspect-video bg-black/40 rounded-lg overflow-hidden border border-white/10">
+            <div key={ref.id} className="relative group aspect-video bg-gray-100 dark:bg-black/40 rounded-lg overflow-hidden border border-gray-200 dark:border-white/10">
               <img src={ref.url} crossOrigin="anonymous" alt="Reference" className="w-full h-full object-cover" />
               <button
                 onClick={() => removeRef(ref.id)}
@@ -155,13 +155,13 @@ export const ReferenceImagePicker: React.FC<ReferenceImagePickerProps> = ({
 
       {/* Selection Area */}
       {selectedRefs.length < maxRefs && (
-        <div className="border border-white/10 rounded-xl overflow-hidden bg-white/5">
-          <div className="flex border-b border-white/10">
+        <div className="border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden bg-gray-50 dark:bg-white/5">
+          <div className="flex border-b border-gray-200 dark:border-white/10">
             {allowUpload && (
               <button
                 onClick={() => setActiveTab('upload')}
-                className={`flex-1 py-2 text-xs font-medium transition-colors ${
-                  activeTab === 'upload' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                  activeTab === 'upload' ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
                 Upload
@@ -170,8 +170,8 @@ export const ReferenceImagePicker: React.FC<ReferenceImagePickerProps> = ({
             {allowProjectSelection && (
               <button
                 onClick={() => setActiveTab('project')}
-                className={`flex-1 py-2 text-xs font-medium transition-colors ${
-                  activeTab === 'project' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white'
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                  activeTab === 'project' ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
                 From Project
@@ -187,7 +187,7 @@ export const ReferenceImagePicker: React.FC<ReferenceImagePickerProps> = ({
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
                 className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-                  isDragging ? 'border-dlm-accent bg-dlm-accent/10' : 'border-white/10 hover:border-white/30'
+                  isDragging ? 'border-dlm-accent bg-dlm-accent/10' : 'border-gray-300 dark:border-white/10 hover:border-gray-400 dark:hover:border-white/30'
                 }`}
               >
                 <input
@@ -198,13 +198,13 @@ export const ReferenceImagePicker: React.FC<ReferenceImagePickerProps> = ({
                   multiple
                   onChange={handleFileSelect}
                 />
-                <div className="flex flex-col items-center gap-2 text-gray-400">
+                <div className="flex flex-col items-center gap-2 text-gray-500 dark:text-gray-400">
                   {isProcessing ? (
                     <LoadingSpinner />
                   ) : (
                     <>
                       <UploadIcon />
-                      <span className="text-xs">Click or drag images here</span>
+                      <span className="text-sm">Click or drag images here</span>
                     </>
                   )}
                 </div>
@@ -214,7 +214,7 @@ export const ReferenceImagePicker: React.FC<ReferenceImagePickerProps> = ({
             {activeTab === 'project' && allowProjectSelection && (
               <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto pr-1">
                 {availableProjectImages.length === 0 ? (
-                  <div className="col-span-3 text-center py-4 text-gray-500 text-xs">
+                  <div className="col-span-3 text-center py-4 text-gray-500 text-sm">
                     No generated images yet
                   </div>
                 ) : (

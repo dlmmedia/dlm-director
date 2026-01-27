@@ -2,6 +2,8 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
+import { cn } from '@/lib/utils';
+import { Check } from 'lucide-react';
 
 interface Props {
   currentStep: number;
@@ -15,33 +17,16 @@ const steps = [
   { label: 'Production', description: 'Generate content' }
 ];
 
-const CheckIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-  </svg>
-);
-
 export const StepIndicator: React.FC<Props> = ({ currentStep, onStepClick }) => {
-  // #region agent log
-  React.useEffect(() => {
-    const el = document.getElementById('step-indicator-wrapper');
-    if (el) {
-       const rect = el.getBoundingClientRect();
-       const style = window.getComputedStyle(el);
-       fetch('http://127.0.0.1:7243/ingest/38be5295-f513-45bf-9b9a-128482a00dc2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'components/StepIndicator.tsx:26',message:'StepIndicator dimensions',data:{width: rect.width, maxWidth: style.maxWidth, paddingLeft: style.paddingLeft, paddingRight: style.paddingRight, screenWidth: window.innerWidth},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-    }
-  }, []);
-  // #endregion
-
   return (
     <div id="step-indicator-wrapper" className="w-full px-6 md:px-12">
       <div className="flex items-center justify-between relative">
         {/* Background line */}
-        <div className="absolute top-5 left-0 right-0 h-[2px] bg-white/10" />
+        <div className="absolute top-5 left-0 right-0 h-[2px] bg-border" />
         
         {/* Animated progress line */}
         <motion.div 
-          className="absolute top-5 left-0 h-[2px] bg-gradient-to-r from-green-500 via-green-400 to-dlm-accent"
+          className="absolute top-5 left-0 h-[2px] bg-gradient-to-r from-green-500 via-green-400 to-primary"
           initial={{ width: '0%' }}
           animate={{ width: `${(currentStep / (steps.length - 1)) * 100}%` }}
           transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
@@ -51,12 +36,14 @@ export const StepIndicator: React.FC<Props> = ({ currentStep, onStepClick }) => 
         {steps.map((step, idx) => {
           const isCompleted = idx < currentStep;
           const isCurrent = idx === currentStep;
-          const isClickable = isCompleted || isCurrent || (idx === currentStep + 1 && onStepClick); // Allow moving to next if available logic permits (handled by parent)
 
           return (
             <div 
               key={step.label} 
-              className={`flex flex-col items-center relative z-10 ${onStepClick ? 'cursor-pointer' : ''}`}
+              className={cn(
+                "flex flex-col items-center relative z-10",
+                onStepClick && "cursor-pointer"
+              )}
               onClick={() => {
                 if (onStepClick) {
                   onStepClick(idx);
@@ -65,16 +52,12 @@ export const StepIndicator: React.FC<Props> = ({ currentStep, onStepClick }) => 
             >
               {/* Step Circle */}
               <motion.div
-                className={`
-                  w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm
-                  transition-colors duration-300 relative
-                  ${isCompleted 
-                    ? 'bg-green-500/20 border-2 border-green-500 text-green-400'
-                    : isCurrent 
-                      ? 'bg-dlm-accent text-black border-2 border-dlm-accent'
-                      : 'bg-white/5 border border-white/20 text-gray-500'
-                  }
-                `}
+                className={cn(
+                  "w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm transition-colors duration-300 relative",
+                  isCompleted && "bg-green-500/20 border-2 border-green-500 text-green-500",
+                  isCurrent && "bg-primary text-primary-foreground border-2 border-primary",
+                  !isCompleted && !isCurrent && "bg-muted border border-border text-muted-foreground"
+                )}
                 animate={{
                   boxShadow: isCurrent 
                     ? '0 0 30px rgba(212, 175, 55, 0.4), 0 0 60px rgba(212, 175, 55, 0.2)' 
@@ -85,38 +68,34 @@ export const StepIndicator: React.FC<Props> = ({ currentStep, onStepClick }) => 
                 {/* Pulse ring for current step */}
                 {isCurrent && (
                   <motion.div
-                    className="absolute inset-0 rounded-full border-2 border-dlm-accent"
+                    className="absolute inset-0 rounded-full border-2 border-primary"
                     initial={{ scale: 1, opacity: 0.5 }}
                     animate={{ scale: 1.5, opacity: 0 }}
                     transition={{ duration: 1.5, repeat: Infinity, ease: 'easeOut' }}
                   />
                 )}
                 
-                {isCompleted ? <CheckIcon /> : <span>{idx + 1}</span>}
+                {isCompleted ? <Check className="w-4 h-4" /> : <span>{idx + 1}</span>}
               </motion.div>
 
               {/* Label */}
               <span 
-                className={`
-                  mt-3 text-xs font-medium tracking-wide
-                  ${isCompleted 
-                    ? 'text-green-400'
-                    : isCurrent 
-                      ? 'text-dlm-accent'
-                      : 'text-gray-500'
-                  }
-                `}
+                className={cn(
+                  "mt-3 text-sm font-medium tracking-wide",
+                  isCompleted && "text-green-500",
+                  isCurrent && "text-primary",
+                  !isCompleted && !isCurrent && "text-muted-foreground"
+                )}
               >
                 {step.label}
               </span>
 
               {/* Description - only show for current */}
               <span 
-                className={`
-                  mt-1 text-[10px] text-gray-500 hidden md:block
-                  transition-opacity duration-300
-                  ${isCurrent ? 'opacity-100' : 'opacity-0'}
-                `}
+                className={cn(
+                  "mt-1 text-[10px] text-muted-foreground hidden md:block transition-opacity duration-300",
+                  isCurrent ? 'opacity-100' : 'opacity-0'
+                )}
               >
                 {step.description}
               </span>

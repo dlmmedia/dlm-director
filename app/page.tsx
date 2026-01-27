@@ -36,6 +36,7 @@ import {
   hasPendingSave
 } from '@/lib/projectStore';
 import { SaveIcon, UserIcon, LoadingSpinner } from '@/components/Icons';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 // Import Steps
 import ConceptStep from '@/components/steps/ConceptStep';
@@ -203,21 +204,18 @@ export default function Home() {
 
 
   const handleNewProject = async () => {
-    try {
-      const project = await createProjectAPI('New Project');
-      if (project) {
-        setCurrentProjectId(project.id);
-        const newConfig = createDefaultConfig();
-        setConfig(newConfig);
-        lastSavedConfigRef.current = JSON.stringify(newConfig);
-        setStep(0);
-      } else {
-        setErrorMessage("Failed to create project.");
-      }
-    } catch (e) {
-      setErrorMessage("Error creating project.");
-      console.error(e);
-    }
+    // Cancel any pending saves for the previous project
+    cancelPendingSave();
+    
+    // Just reset local state - don't create in DB yet
+    // The project will be created when actual content is added (via auto-save)
+    setCurrentProjectId(null);
+    const newConfig = createDefaultConfig();
+    setConfig(newConfig);
+    lastSavedConfigRef.current = '';
+    lastSyncedTitleRef.current = '';
+    setStep(0);
+    setSaveStatus('saved');
   };
 
   const ensureProjectExists = async () => {
@@ -889,7 +887,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen bg-[#0a0a0a]">
+    <div className="flex h-screen bg-gray-100 dark:bg-[#0a0a0a] transition-colors duration-300">
       {/* Sidebar */}
       <Sidebar
         currentProjectId={currentProjectId}
@@ -904,17 +902,17 @@ export default function Home() {
         {/* Error Banner */}
         <AnimatePresence>
           {errorMessage && (
-            <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 bg-red-500/90 text-white px-6 py-3 rounded-xl shadow-xl backdrop-blur-md border border-red-400/50 flex items-center gap-3" onClick={() => setErrorMessage(null)}>
-               <span className="font-medium">{errorMessage}</span>
+            <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 bg-red-500 text-white px-6 py-3 rounded-xl shadow-xl backdrop-blur-md border border-red-400 flex items-center gap-3" onClick={() => setErrorMessage(null)}>
+               <span className="font-medium text-base">{errorMessage}</span>
                <button onClick={() => setErrorMessage(null)} className="ml-2 hover:bg-white/20 rounded-full p-1">
-                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                </button>
             </div>
           )}
         </AnimatePresence>
 
         {/* Header */}
-        <header className="border-b border-white/10 bg-[#0a0a0a]/95 backdrop-blur-xl sticky top-0 z-40">
+        <header className="border-b border-gray-200 dark:border-white/10 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl sticky top-0 z-40 transition-colors duration-300">
           <div className="px-6 h-20 flex items-center justify-between">
             <button 
               onClick={() => setStep(0)}
@@ -926,17 +924,20 @@ export default function Home() {
                   src="/logo.png" 
                   alt="DLM Director" 
                   fill 
-                  className="object-contain object-left"
+                  className="object-contain object-left dark:brightness-100 brightness-90"
                   priority
                 />
               </div>
             </button>
             
             <div className="flex items-center gap-6">
+              {/* Theme Toggle */}
+              <ThemeToggle />
+              
               {/* Save Status */}
-              <div className={`flex items-center gap-2 text-xs font-medium ${
-                saveStatus === 'saved' ? 'text-green-500' : 
-                saveStatus === 'saving' ? 'text-yellow-500' : 
+              <div className={`flex items-center gap-2 text-sm font-medium ${
+                saveStatus === 'saved' ? 'text-green-600 dark:text-green-500' : 
+                saveStatus === 'saving' ? 'text-yellow-600 dark:text-yellow-500' : 
                 'text-gray-500'
               }`}>
                 {saveStatus === 'saving' ? (
@@ -952,13 +953,13 @@ export default function Home() {
               </div>
               
               {config.characters.length > 0 && (
-                <span className="text-xs text-gray-500 flex items-center gap-2">
+                <span className="text-sm text-gray-600 dark:text-gray-500 flex items-center gap-2">
                   <UserIcon /> 
                   <span>{config.characters.length} characters</span>
                 </span>
               )}
               
-              <div className="text-xs text-gray-500 font-mono bg-white/5 px-3 py-1.5 rounded-lg">
+              <div className="text-sm text-gray-600 dark:text-gray-500 font-mono bg-gray-100 dark:bg-white/5 px-3 py-1.5 rounded-lg">
                 {config.title || 'Untitled Project'}
               </div>
             </div>

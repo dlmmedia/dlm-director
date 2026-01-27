@@ -1,19 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   ProjectConfig, 
   CharacterProfile 
 } from '@/types';
-import { 
-  MagicIcon, 
-  SparkleIcon, 
-  ArrowLeftIcon, 
-  LoadingSpinner 
-} from '@/components/Icons';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Card } from '@/components/ui/card';
 import { CharacterManager } from '@/components/CharacterManager';
 import { VisualPresetSelector } from '@/components/config/VisualPresetSelector';
 import { CameraControlPanel } from '@/components/config/CameraControlPanel';
 import { TextureControlPanel } from '@/components/config/TextureControlPanel';
 import { LightingControlPanel } from '@/components/config/LightingControlPanel';
+import { PromptEnhanceModal } from '@/components/PromptEnhanceModal';
+import { cn } from '@/lib/utils';
+import { 
+  Wand2, 
+  Sparkles, 
+  ArrowLeft, 
+  Loader2 
+} from 'lucide-react';
 
 interface ConfigStepProps {
   config: ProjectConfig;
@@ -40,9 +46,10 @@ export default function ConfigStep({
   onUpdateCharacter,
   onRemoveCharacter
 }: ConfigStepProps) {
-  const [sceneCount, setSceneCount] = React.useState(5);
-  const [customCount, setCustomCount] = React.useState('5');
-  const [isCustom, setIsCustom] = React.useState(false);
+  const [sceneCount, setSceneCount] = useState(5);
+  const [customCount, setCustomCount] = useState('5');
+  const [isCustom, setIsCustom] = useState(false);
+  const [showEnhanceModal, setShowEnhanceModal] = useState(false);
 
   const handleSceneCountSelect = (val: number | 'custom') => {
     if (val === 'custom') {
@@ -71,61 +78,78 @@ export default function ConfigStep({
     <div className="w-full px-4 md:px-12 py-8 space-y-8">
       <div>
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-3xl font-light text-white">Project Configuration</h2>
-          <span className="text-base text-gray-500 font-medium px-4 py-1.5 rounded-full bg-white/5">{config.category}</span>
+          <h2 className="text-3xl font-light">Project Configuration</h2>
+          <span className="text-base text-muted-foreground font-medium px-4 py-1.5 rounded-full bg-muted">{config.category}</span>
         </div>
       </div>
       
-      {/* 1. Visual Style Presets (The "Brain") */}
+      {/* 1. Visual Style Presets */}
       <VisualPresetSelector config={config} setConfig={updateConfig} />
 
       {/* 2. Deep Configuration Panels */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-         {/* Camera & Lens */}
-         <CameraControlPanel config={config} onUpdate={updateConfig} />
-         
-         {/* Texture & Material */}
-         <TextureControlPanel config={config} onUpdate={updateConfig} />
-         
-         {/* Lighting */}
-         <LightingControlPanel config={config} onUpdate={updateConfig} />
+        <CameraControlPanel config={config} onUpdate={updateConfig} />
+        <TextureControlPanel config={config} onUpdate={updateConfig} />
+        <LightingControlPanel config={config} onUpdate={updateConfig} />
       </div>
 
       {/* 3. Creative Prompt */}
-      <div className="card-elevated p-6">
-        <h3 className="text-lg font-medium text-white mb-5 flex items-center gap-3">
-          <span className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-400">
-            <MagicIcon />
-          </span>
-          Creative Vision
-        </h3>
-        <textarea 
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-lg font-medium flex items-center gap-3">
+            <span className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-500">
+              <Wand2 className="w-4 h-4" />
+            </span>
+            Creative Vision
+          </h3>
+          <Button
+            onClick={() => setShowEnhanceModal(true)}
+            size="sm"
+            className="bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Enhance</span>
+          </Button>
+        </div>
+        <Textarea 
           value={config.userPrompt}
           onChange={(e) => updateConfig({ userPrompt: e.target.value })}
           placeholder="Describe your video idea in detail... Include characters, settings, mood, and key moments."
-          className="input resize-none h-36"
+          className="h-36 resize-none"
         />
         <div className="flex justify-between items-center mt-4">
-          <span className="text-xs text-gray-500">
+          <span className="text-sm text-muted-foreground">
             Tip: Be specific about characters and locations for better consistency
           </span>
-          <button
+          <Button
+            variant="ghost"
             onClick={onExtractEntities}
             disabled={!config.userPrompt || extractingEntities}
-            className="btn-ghost text-dlm-accent disabled:opacity-50"
+            className="text-primary hover:text-primary"
           >
             {extractingEntities ? (
-              <LoadingSpinner size={16} />
+              <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <SparkleIcon />
+              <Sparkles className="w-4 h-4" />
             )}
             <span>{extractingEntities ? 'Extracting...' : 'Extract Characters & Locations'}</span>
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
+
+      {/* Prompt Enhance Modal */}
+      <PromptEnhanceModal
+        isOpen={showEnhanceModal}
+        onClose={() => setShowEnhanceModal(false)}
+        title="Enhance Creative Vision"
+        initialPrompt={config.userPrompt}
+        onSave={(enhanced) => updateConfig({ userPrompt: enhanced })}
+        contextType="concept"
+        config={config}
+      />
 
       {/* 4. Characters */}
-      <div className="card-elevated p-6">
+      <Card className="p-6">
         <CharacterManager
           characters={config.characters}
           config={config}
@@ -133,71 +157,74 @@ export default function ConfigStep({
           onUpdateCharacter={onUpdateCharacter}
           onRemoveCharacter={onRemoveCharacter}
         />
-      </div>
+      </Card>
 
       {/* Navigation */}
       <div className="flex justify-between items-end pt-6">
-        <button onClick={onBack} className="btn-ghost">
-          <ArrowLeftIcon />
+        <Button variant="ghost" onClick={onBack}>
+          <ArrowLeft className="w-4 h-4" />
           <span>Back</span>
-        </button>
+        </Button>
         
         <div className="flex flex-col items-end gap-3">
-            {/* Scene Count Selector */}
-            <div className="flex items-center gap-2 bg-white/5 p-1 rounded-lg border border-white/10">
-                <span className="text-xs text-gray-500 font-medium px-2">Scenes:</span>
-                {[5, 10, 15].map(num => (
-                    <button
-                        key={num}
-                        onClick={() => handleSceneCountSelect(num)}
-                        className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${
-                            !isCustom && sceneCount === num 
-                                ? 'bg-white/20 text-white shadow-sm' 
-                                : 'text-gray-400 hover:text-white hover:bg-white/10'
-                        }`}
-                    >
-                        {num}
-                    </button>
-                ))}
-                <button
-                    onClick={() => handleSceneCountSelect('custom')}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${
-                        isCustom
-                            ? 'bg-white/20 text-white shadow-sm' 
-                            : 'text-gray-400 hover:text-white hover:bg-white/10'
-                    }`}
-                >
-                    Custom
-                </button>
-                {isCustom && (
-                    <input 
-                        type="number" 
-                        min="1" 
-                        max="50"
-                        value={customCount}
-                        onChange={handleCustomCountChange}
-                        className="w-12 bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white text-center focus:border-dlm-accent outline-none"
-                    />
+          {/* Scene Count Selector */}
+          <div className="flex items-center gap-2 bg-muted p-1 rounded-lg border border-border">
+            <span className="text-sm text-muted-foreground font-medium px-2">Scenes:</span>
+            {[5, 10, 15].map(num => (
+              <Button
+                key={num}
+                variant={!isCustom && sceneCount === num ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => handleSceneCountSelect(num)}
+                className={cn(
+                  "h-8 px-3",
+                  !isCustom && sceneCount === num && "bg-background shadow-sm"
                 )}
-            </div>
+              >
+                {num}
+              </Button>
+            ))}
+            <Button
+              variant={isCustom ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => handleSceneCountSelect('custom')}
+              className={cn(
+                "h-8 px-3",
+                isCustom && "bg-background shadow-sm"
+              )}
+            >
+              Custom
+            </Button>
+            {isCustom && (
+              <Input 
+                type="number" 
+                min="1" 
+                max="50"
+                value={customCount}
+                onChange={handleCustomCountChange}
+                className="w-14 h-8 text-center"
+              />
+            )}
+          </div>
 
-            <button 
+          <Button 
+            variant="gold"
+            size="lg"
             onClick={() => onGenerateScript(sceneCount)}
             disabled={loadingScript || !config.userPrompt}
-            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+          >
             {loadingScript ? (
-                <>
-                <LoadingSpinner size={20} color="#000" />
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
                 <span>Generating Script ({sceneCount} scenes)...</span>
-                </>
+              </>
             ) : (
-                <>
-                <MagicIcon />
+              <>
+                <Wand2 className="w-5 h-5" />
                 <span>Generate Cinematic Script</span>
-                </>
+              </>
             )}
-            </button>
+          </Button>
         </div>
       </div>
     </div>

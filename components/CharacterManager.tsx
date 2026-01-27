@@ -1,21 +1,35 @@
 'use client';
 
-// ========================================
-// CHARACTER MANAGER COMPONENT
-// Premium character management with animations
-// ========================================
-
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CharacterProfile, ProjectConfig, ReferenceImage } from '../types';
 import { ReferenceImagePicker } from './ReferenceImagePicker';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Card } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { cn } from '@/lib/utils';
+import { Plus, Trash2, ChevronDown, User } from 'lucide-react';
 
 interface Props {
   characters: CharacterProfile[];
   onAddCharacter: (character: CharacterProfile) => void;
   onUpdateCharacter: (id: string, updates: Partial<CharacterProfile>) => void;
   onRemoveCharacter: (id: string) => void;
-  config?: ProjectConfig; // Optional config for picking from project images
+  config?: ProjectConfig;
 }
 
 const SKIN_TONES = [
@@ -43,31 +57,6 @@ const BODY_TYPES = [
   'Slim/slender', 'Athletic/toned', 'Average build', 'Muscular', 'Curvy',
   'Plus size', 'Petite', 'Tall and lean', 'Stocky', 'Broad-shouldered'
 ];
-
-// Icons
-const PlusIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-  </svg>
-);
-
-const TrashIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-  </svg>
-);
-
-const ChevronDownIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-  </svg>
-);
-
-const UserIcon = () => (
-  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-  </svg>
-);
 
 export const CharacterManager: React.FC<Props> = ({
   characters,
@@ -133,158 +122,150 @@ export const CharacterManager: React.FC<Props> = ({
     setIsAdding(false);
   };
 
-  const inputClass = "w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2.5 text-white text-sm focus:border-dlm-accent focus:ring-1 focus:ring-dlm-accent/30 outline-none transition-all";
-  const labelClass = "block text-[10px] text-gray-500 uppercase tracking-wider font-medium mb-1.5";
-
   const renderCharacterForm = (
     char: Partial<CharacterProfile>,
     onChange: (updates: Partial<CharacterProfile>) => void,
     isNew: boolean = false
   ) => (
     <motion.div 
-      className="grid grid-cols-2 md:grid-cols-3 gap-4 p-5 bg-white/[0.02] rounded-xl border border-white/[0.06]"
+      className="grid grid-cols-2 md:grid-cols-3 gap-4 p-5 bg-muted/50 rounded-xl border border-border"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.2 }}
     >
-      <div className="col-span-2 md:col-span-3">
-        <label className={labelClass}>Character Name *</label>
-        <input
+      <div className="col-span-2 md:col-span-3 space-y-2">
+        <Label className="text-xs uppercase tracking-wider font-medium text-muted-foreground">Character Name *</Label>
+        <Input
           type="text"
           value={char.name || ''}
           onChange={(e) => onChange({ name: e.target.value })}
           placeholder="e.g., Sarah, The Detective"
-          className={inputClass}
         />
       </div>
       
-      <div>
-        <label className={labelClass}>Age</label>
-        <input
+      <div className="space-y-2">
+        <Label className="text-xs uppercase tracking-wider font-medium text-muted-foreground">Age</Label>
+        <Input
           type="text"
           value={char.age || ''}
           onChange={(e) => onChange({ age: e.target.value })}
           placeholder="e.g., 30, mid-twenties"
-          className={inputClass}
         />
       </div>
       
-      <div>
-        <label className={labelClass}>Gender</label>
-        <select
-          value={char.gender || ''}
-          onChange={(e) => onChange({ gender: e.target.value })}
-          className={inputClass}
-        >
-          <option value="">Select...</option>
-          <option value="male">Male</option>
-          <option value="female">Female</option>
-          <option value="non-binary">Non-binary</option>
-          <option value="other">Other</option>
-        </select>
+      <div className="space-y-2">
+        <Label className="text-xs uppercase tracking-wider font-medium text-muted-foreground">Gender</Label>
+        <Select value={char.gender || ''} onValueChange={(value) => onChange({ gender: value })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="male">Male</SelectItem>
+            <SelectItem value="female">Female</SelectItem>
+            <SelectItem value="non-binary">Non-binary</SelectItem>
+            <SelectItem value="other">Other</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       
-      <div>
-        <label className={labelClass}>Skin Tone</label>
-        <select
-          value={char.skinTone || ''}
-          onChange={(e) => onChange({ skinTone: e.target.value })}
-          className={inputClass}
-        >
-          <option value="">Select...</option>
-          {SKIN_TONES.map(tone => (
-            <option key={tone} value={tone.toLowerCase()}>{tone}</option>
-          ))}
-        </select>
+      <div className="space-y-2">
+        <Label className="text-xs uppercase tracking-wider font-medium text-muted-foreground">Skin Tone</Label>
+        <Select value={char.skinTone || ''} onValueChange={(value) => onChange({ skinTone: value })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select..." />
+          </SelectTrigger>
+          <SelectContent>
+            {SKIN_TONES.map(tone => (
+              <SelectItem key={tone} value={tone.toLowerCase()}>{tone}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       
-      <div>
-        <label className={labelClass}>Hair Style</label>
-        <select
-          value={char.hairStyle || ''}
-          onChange={(e) => onChange({ hairStyle: e.target.value })}
-          className={inputClass}
-        >
-          <option value="">Select...</option>
-          {HAIR_STYLES.map(style => (
-            <option key={style} value={style.toLowerCase()}>{style}</option>
-          ))}
-        </select>
+      <div className="space-y-2">
+        <Label className="text-xs uppercase tracking-wider font-medium text-muted-foreground">Hair Style</Label>
+        <Select value={char.hairStyle || ''} onValueChange={(value) => onChange({ hairStyle: value })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select..." />
+          </SelectTrigger>
+          <SelectContent>
+            {HAIR_STYLES.map(style => (
+              <SelectItem key={style} value={style.toLowerCase()}>{style}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       
-      <div>
-        <label className={labelClass}>Hair Color</label>
-        <select
-          value={char.hairColor || ''}
-          onChange={(e) => onChange({ hairColor: e.target.value })}
-          className={inputClass}
-        >
-          <option value="">Select...</option>
-          {HAIR_COLORS.map(color => (
-            <option key={color} value={color.toLowerCase()}>{color}</option>
-          ))}
-        </select>
+      <div className="space-y-2">
+        <Label className="text-xs uppercase tracking-wider font-medium text-muted-foreground">Hair Color</Label>
+        <Select value={char.hairColor || ''} onValueChange={(value) => onChange({ hairColor: value })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select..." />
+          </SelectTrigger>
+          <SelectContent>
+            {HAIR_COLORS.map(color => (
+              <SelectItem key={color} value={color.toLowerCase()}>{color}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       
-      <div>
-        <label className={labelClass}>Eye Color</label>
-        <select
-          value={char.eyeColor || ''}
-          onChange={(e) => onChange({ eyeColor: e.target.value })}
-          className={inputClass}
-        >
-          <option value="">Select...</option>
-          {EYE_COLORS.map(color => (
-            <option key={color} value={color.toLowerCase()}>{color}</option>
-          ))}
-        </select>
+      <div className="space-y-2">
+        <Label className="text-xs uppercase tracking-wider font-medium text-muted-foreground">Eye Color</Label>
+        <Select value={char.eyeColor || ''} onValueChange={(value) => onChange({ eyeColor: value })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select..." />
+          </SelectTrigger>
+          <SelectContent>
+            {EYE_COLORS.map(color => (
+              <SelectItem key={color} value={color.toLowerCase()}>{color}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       
-      <div>
-        <label className={labelClass}>Body Type</label>
-        <select
-          value={char.bodyType || ''}
-          onChange={(e) => onChange({ bodyType: e.target.value })}
-          className={inputClass}
-        >
-          <option value="">Select...</option>
-          {BODY_TYPES.map(type => (
-            <option key={type} value={type.toLowerCase()}>{type}</option>
-          ))}
-        </select>
+      <div className="space-y-2">
+        <Label className="text-xs uppercase tracking-wider font-medium text-muted-foreground">Body Type</Label>
+        <Select value={char.bodyType || ''} onValueChange={(value) => onChange({ bodyType: value })}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select..." />
+          </SelectTrigger>
+          <SelectContent>
+            {BODY_TYPES.map(type => (
+              <SelectItem key={type} value={type.toLowerCase()}>{type}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       
-      <div className="col-span-2">
-        <label className={labelClass}>Current Outfit</label>
-        <input
+      <div className="col-span-2 space-y-2">
+        <Label className="text-xs uppercase tracking-wider font-medium text-muted-foreground">Current Outfit</Label>
+        <Input
           type="text"
           value={char.currentOutfit || ''}
           onChange={(e) => onChange({ currentOutfit: e.target.value })}
           placeholder="e.g., dark suit, white shirt, red dress"
-          className={inputClass}
         />
       </div>
       
-      <div>
-        <label className={labelClass}>Accessories</label>
-        <input
+      <div className="space-y-2">
+        <Label className="text-xs uppercase tracking-wider font-medium text-muted-foreground">Accessories</Label>
+        <Input
           type="text"
           value={char.accessories || ''}
           onChange={(e) => onChange({ accessories: e.target.value })}
           placeholder="e.g., glasses, watch, earrings"
-          className={inputClass}
         />
       </div>
       
-      <div className="col-span-2 md:col-span-3">
-        <label className={labelClass}>Distinguishing Features</label>
-        <input
+      <div className="col-span-2 md:col-span-3 space-y-2">
+        <Label className="text-xs uppercase tracking-wider font-medium text-muted-foreground">Distinguishing Features</Label>
+        <Input
           type="text"
           value={char.distinguishingFeatures || ''}
           onChange={(e) => onChange({ distinguishingFeatures: e.target.value })}
           placeholder="e.g., scar on left cheek, freckles, beard, tattoo on arm"
-          className={inputClass}
         />
       </div>
       
@@ -294,9 +275,9 @@ export const CharacterManager: React.FC<Props> = ({
           selectedRefs={char.referenceImageUrl ? [{
             id: 'char-ref',
             type: 'SUBJECT',
-            source: 'UPLOAD', // Assume upload/external for now
+            source: 'UPLOAD',
             url: char.referenceImageUrl,
-            mimeType: 'image/png' // Placeholder
+            mimeType: 'image/png'
           }] : []}
           onUpdateRefs={(refs) => onChange({ referenceImageUrl: refs[0]?.url })}
           maxRefs={1}
@@ -305,36 +286,33 @@ export const CharacterManager: React.FC<Props> = ({
         />
       </div>
 
-      <div className="col-span-2 md:col-span-3">
-        <label className={labelClass}>Additional Physical Description</label>
-        <textarea
+      <div className="col-span-2 md:col-span-3 space-y-2">
+        <Label className="text-xs uppercase tracking-wider font-medium text-muted-foreground">Additional Physical Description</Label>
+        <Textarea
           value={char.physicalDescription || ''}
           onChange={(e) => onChange({ physicalDescription: e.target.value })}
           placeholder="Any additional details for consistency..."
           rows={2}
-          className={`${inputClass} resize-none`}
+          className="resize-none"
         />
       </div>
       
       {isNew && (
         <div className="col-span-2 md:col-span-3 flex gap-3 mt-2">
-          <motion.button
+          <Button
+            variant="gold"
             onClick={handleAdd}
             disabled={!char.name}
-            className="flex-1 py-2.5 bg-dlm-accent text-black font-semibold rounded-xl hover:brightness-110 disabled:opacity-50 transition-all"
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
+            className="flex-1"
           >
             Add Character
-          </motion.button>
-          <motion.button
+          </Button>
+          <Button
+            variant="outline"
             onClick={() => setIsAdding(false)}
-            className="px-5 py-2.5 border border-white/[0.08] text-gray-400 rounded-xl hover:text-white hover:border-white/[0.15] transition-all"
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
           >
             Cancel
-          </motion.button>
+          </Button>
         </div>
       )}
     </motion.div>
@@ -343,32 +321,26 @@ export const CharacterManager: React.FC<Props> = ({
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h3 className="heading-md text-white flex items-center gap-3">
-          <span className="w-8 h-8 rounded-lg bg-dlm-accent/20 flex items-center justify-center text-dlm-accent">
-            <UserIcon />
+        <h3 className="text-lg font-medium flex items-center gap-3">
+          <span className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary">
+            <User className="w-4 h-4" />
           </span>
           Characters
-          <span className="text-sm text-gray-500 font-normal">({characters.length})</span>
+          <span className="text-base text-muted-foreground font-normal">({characters.length})</span>
         </h3>
         {!isAdding && (
-          <motion.button
+          <Button
+            variant="ghost"
             onClick={() => setIsAdding(true)}
-            className="btn-ghost text-dlm-accent"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+            className="text-primary hover:text-primary"
           >
-            <motion.span
-              whileHover={{ rotate: 90 }}
-              transition={{ duration: 0.2 }}
-            >
-              <PlusIcon />
-            </motion.span>
+            <Plus className="w-4 h-4" />
             <span>Add Character</span>
-          </motion.button>
+          </Button>
         )}
       </div>
       
-      <p className="text-xs text-gray-500 leading-relaxed">
+      <p className="text-xs text-muted-foreground leading-relaxed">
         Define characters for consistent appearance across all scenes. The more detail, the better consistency.
       </p>
       
@@ -376,71 +348,61 @@ export const CharacterManager: React.FC<Props> = ({
       <AnimatePresence>
         {characters.map((char, idx) => (
           <motion.div 
-            key={char.id} 
-            className="card-elevated rounded-xl overflow-hidden"
+            key={char.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ delay: idx * 0.05 }}
             layout
           >
-            <motion.div 
-              className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/[0.02] transition-colors"
-              onClick={() => setEditingId(editingId === char.id ? null : char.id)}
-              whileHover={{ backgroundColor: 'rgba(255,255,255,0.02)' }}
-            >
-              <div className="flex items-center gap-4">
-                <motion.div 
-                  className="w-12 h-12 rounded-xl bg-gradient-to-br from-dlm-accent/30 to-amber-500/20 flex items-center justify-center text-dlm-accent font-bold text-lg"
-                  whileHover={{ scale: 1.05 }}
-                >
-                  {char.name.charAt(0).toUpperCase()}
-                </motion.div>
-                <div>
-                  <h4 className="text-white font-medium">{char.name}</h4>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {[char.age, char.gender, char.hairColor ? `${char.hairColor} hair` : null].filter(Boolean).join(' • ')}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <motion.button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRemoveCharacter(char.id);
-                  }}
-                  className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                >
-                  <TrashIcon />
-                </motion.button>
-                <motion.div
-                  animate={{ rotate: editingId === char.id ? 180 : 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="text-gray-500"
-                >
-                  <ChevronDownIcon />
-                </motion.div>
-              </div>
-            </motion.div>
-            
-            <AnimatePresence>
-              {editingId === char.id && (
-                <motion.div 
-                  className="border-t border-white/[0.06] p-4"
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  {renderCharacterForm(
-                    char,
-                    (updates) => onUpdateCharacter(char.id, updates)
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <Collapsible open={editingId === char.id} onOpenChange={(open) => setEditingId(open ? char.id : null)}>
+              <Card className="overflow-hidden">
+                <CollapsibleTrigger asChild>
+                  <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/30 to-amber-500/20 flex items-center justify-center text-primary font-bold text-lg">
+                        {char.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-base">{char.name}</h4>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                          {[char.age, char.gender, char.hairColor ? `${char.hairColor} hair` : null].filter(Boolean).join(' • ')}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRemoveCharacter(char.id);
+                        }}
+                        className="hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                      <motion.div
+                        animate={{ rotate: editingId === char.id ? 180 : 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="text-muted-foreground"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </motion.div>
+                    </div>
+                  </div>
+                </CollapsibleTrigger>
+                
+                <CollapsibleContent>
+                  <div className="border-t border-border p-4">
+                    {renderCharacterForm(
+                      char,
+                      (updates) => onUpdateCharacter(char.id, updates)
+                    )}
+                  </div>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
           </motion.div>
         ))}
       </AnimatePresence>
@@ -461,14 +423,14 @@ export const CharacterManager: React.FC<Props> = ({
           animate={{ opacity: 1 }}
         >
           <motion.div
-            className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-white/[0.03] flex items-center justify-center text-gray-600"
+            className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-muted flex items-center justify-center text-muted-foreground"
             animate={{ y: [0, -5, 0] }}
             transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
           >
-            <UserIcon />
+            <User className="w-6 h-6" />
           </motion.div>
-          <p className="text-sm text-gray-500">No characters defined yet</p>
-          <p className="text-xs text-gray-600 mt-1">Add characters for better visual consistency</p>
+          <p className="text-base text-muted-foreground">No characters defined yet</p>
+          <p className="text-sm text-muted-foreground/70 mt-1">Add characters for better visual consistency</p>
         </motion.div>
       )}
     </div>

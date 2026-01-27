@@ -15,11 +15,23 @@ import {
   LightSource,
   FocalLength,
   DepthOfField,
+  TimestampedSegment,
+  VideoModel,
   VISUAL_STYLE_PRESETS,
   CINEMATIC_PALETTES,
   buildCharacterPromptSegment,
   buildCinematographyPromptSegment
 } from '../types';
+
+/**
+ * Check if the video model supports native audio generation
+ * Veo 3.x supports audio, Veo 2.x does not
+ */
+export function isAudioSupportedModel(model?: VideoModel | string): boolean {
+  if (!model) return false;
+  const modelStr = typeof model === 'string' ? model : String(model);
+  return modelStr.startsWith('veo-3');
+}
 
 /**
  * MASTER PROMPT STRUCTURE
@@ -366,6 +378,624 @@ export function buildVideoMotionPrompt(
   // Construct the prompt with higher weight on visual style and camera
   // We prepend "Cinematic Video" and append specific motion tags
   return `Cinematic Video.\n\n${basePrompt}\n\nMOTION SPECIFICS: ${motionDescriptors.join('. ')}.\n\nHigh quality, smooth motion, temporal consistency, professional color grading, high fidelity, 4k.`;
+}
+
+// ========================================
+// VEO 3.1 META FRAMEWORK IMPLEMENTATION
+// 5-Part Prompt Formula for optimal video generation
+// ========================================
+
+/**
+ * VEO 3.1 CINEMATOGRAPHY DESCRIPTORS
+ * Optimized terminology from the Meta Framework
+ */
+const VEO3_SHOT_DESCRIPTORS: Record<ShotType, string> = {
+  [ShotType.EXTREME_WIDE]: 'extreme wide shot',
+  [ShotType.WIDE]: 'wide shot',
+  [ShotType.MEDIUM_WIDE]: 'medium wide shot',
+  [ShotType.MEDIUM]: 'medium shot',
+  [ShotType.MEDIUM_CLOSE]: 'medium close-up',
+  [ShotType.CLOSE_UP]: 'close-up',
+  [ShotType.EXTREME_CLOSE]: 'extreme close-up',
+  [ShotType.INSERT]: 'insert shot',
+  [ShotType.CUTAWAY]: 'cutaway shot',
+  [ShotType.TWO_SHOT]: 'two-shot',
+  [ShotType.GROUP]: 'group shot'
+};
+
+const VEO3_ANGLE_DESCRIPTORS: Record<CameraAngle, string> = {
+  [CameraAngle.EYE_LEVEL]: 'eye-level',
+  [CameraAngle.HIGH_ANGLE]: 'high-angle',
+  [CameraAngle.LOW_ANGLE]: 'low-angle',
+  [CameraAngle.DUTCH_TILT]: 'dutch angle',
+  [CameraAngle.OVER_SHOULDER]: 'over-the-shoulder',
+  [CameraAngle.BIRDS_EYE]: 'bird\'s-eye view',
+  [CameraAngle.WORMS_EYE]: 'worm\'s-eye view',
+  [CameraAngle.POV]: 'POV shot'
+};
+
+const VEO3_MOVEMENT_DESCRIPTORS: Record<CameraMovement, string> = {
+  [CameraMovement.STATIC_TRIPOD]: 'static shot',
+  [CameraMovement.SLOW_PUSH_IN]: 'slow dolly in',
+  [CameraMovement.SLOW_PULL_OUT]: 'slow dolly out',
+  [CameraMovement.PAN_LEFT]: 'pan left',
+  [CameraMovement.PAN_RIGHT]: 'pan right',
+  [CameraMovement.TILT_UP]: 'tilt up',
+  [CameraMovement.TILT_DOWN]: 'tilt down',
+  [CameraMovement.DOLLY_IN]: 'dolly in',
+  [CameraMovement.DOLLY_OUT]: 'dolly out',
+  [CameraMovement.TRACKING]: 'tracking shot',
+  [CameraMovement.CRANE_UP]: 'crane shot up',
+  [CameraMovement.CRANE_DOWN]: 'crane shot down',
+  [CameraMovement.HANDHELD]: 'handheld',
+  [CameraMovement.STEADICAM]: 'steadicam',
+  [CameraMovement.ORBIT]: 'arc shot',
+  [CameraMovement.PARALLAX]: 'truck shot',
+  [CameraMovement.WHIP_PAN]: 'whip pan'
+};
+
+const VEO3_LIGHTING_DESCRIPTORS: Record<LightingStyle, string> = {
+  [LightingStyle.HIGH_KEY]: 'high-key lighting, bright and even',
+  [LightingStyle.LOW_KEY]: 'low-key lighting, dramatic shadows',
+  [LightingStyle.CHIAROSCURO]: 'chiaroscuro lighting, strong contrast',
+  [LightingStyle.SOFT_DIFFUSED]: 'soft diffused lighting',
+  [LightingStyle.HARD_DIRECTIONAL]: 'hard directional lighting',
+  [LightingStyle.PRACTICAL]: 'practical lighting from scene sources',
+  [LightingStyle.RIM_LIGHT]: 'rim lighting, edge lit',
+  [LightingStyle.MOTIVATED]: 'motivated lighting',
+  [LightingStyle.SILHOUETTE]: 'silhouette lighting',
+  [LightingStyle.SPLIT_LIGHT]: 'split lighting',
+  [LightingStyle.REMBRANDT]: 'Rembrandt lighting',
+  [LightingStyle.BUTTERFLY]: 'butterfly lighting'
+};
+
+const VEO3_LIGHT_SOURCE_DESCRIPTORS: Record<LightSource, string> = {
+  [LightSource.TUNGSTEN]: 'warm tungsten light',
+  [LightSource.DAYLIGHT]: 'natural daylight',
+  [LightSource.GOLDEN_HOUR]: 'golden hour sunlight',
+  [LightSource.BLUE_HOUR]: 'blue hour light',
+  [LightSource.MOONLIGHT]: 'moonlight',
+  [LightSource.CANDLE_FIRE]: 'candlelight and fire',
+  [LightSource.NEON]: 'neon lights',
+  [LightSource.OVERCAST]: 'soft overcast light',
+  [LightSource.MIXED]: 'mixed light sources'
+};
+
+const VEO3_DOF_DESCRIPTORS: Record<DepthOfField, string> = {
+  [DepthOfField.EXTREME_SHALLOW]: 'shallow depth of field',
+  [DepthOfField.CINEMATIC_SHALLOW]: 'cinematic shallow depth of field',
+  [DepthOfField.MODERATE]: 'moderate depth of field',
+  [DepthOfField.DEEP_FOCUS]: 'deep focus'
+};
+
+/**
+ * VEO 3.1 NEGATIVE PROMPT - Descriptive format (no instructive language)
+ * Following Meta Framework best practices
+ */
+const VEO3_NEGATIVE_PROMPT = 'subtitles, captions, watermark, text overlays, words on screen, logo, blurry footage, low resolution, artifacts, distorted hands, compression noise, camera shake, jittery motion';
+
+/**
+ * Build audio section using Veo 3.1 recommended syntax
+ * Dialogue: "The character says: 'text'"
+ * SFX: "SFX: description"
+ * Ambience: "Ambient noise: description"
+ * 
+ * Note: Audio is only supported on Veo 3.x models. For Veo 2.x, this returns empty.
+ */
+function buildVeo3AudioSection(scene: Scene, config: ProjectConfig): string {
+  // Check if model supports audio (Veo 3.x only)
+  const modelSupportsAudio = isAudioSupportedModel(config.videoModel);
+  
+  if (!modelSupportsAudio || !config.audioEnabled) {
+    return ''; // Model doesn't support audio or audio is disabled
+  }
+
+  const audioParts: string[] = [];
+  const sceneAudio = scene.audio;
+  const projectMusic = config.audioConfig?.music;
+  const music = sceneAudio?.musicOverride
+    ? { ...(projectMusic || { enabled: true, style: '' }), ...sceneAudio.musicOverride }
+    : projectMusic;
+
+  // Dialogue - Veo 3.1 format: "The [speaker] says [delivery]: 'text'"
+  const dialogue = sceneAudio?.dialogue || [];
+  for (const line of dialogue) {
+    const speaker = (line.speaker || 'speaker').trim();
+    const delivery = (line.delivery || '').trim();
+    const text = (line.text || '').trim();
+    if (!text) continue;
+    
+    if (delivery) {
+      audioParts.push(`The ${speaker} says in a ${delivery} voice: "${text}"`);
+    } else {
+      audioParts.push(`The ${speaker} says: "${text}"`);
+    }
+  }
+
+  // SFX - Veo 3.1 format: "SFX: description"
+  if (sceneAudio?.sfx?.trim()) {
+    audioParts.push(`SFX: ${sceneAudio.sfx.trim()}`);
+  }
+
+  // Ambience/Foley - Veo 3.1 format: "Ambient noise: description"
+  if (sceneAudio?.ambience?.trim()) {
+    audioParts.push(`Ambient noise: ${sceneAudio.ambience.trim()}`);
+  }
+
+  // Add general foley instruction if no specific SFX/ambience provided
+  if (!sceneAudio?.sfx?.trim() && !sceneAudio?.ambience?.trim()) {
+    audioParts.push('Natural foley and sound effects matching the scene');
+  }
+
+  // IMPORTANT: Explicitly exclude background music
+  // Music will be added in post-production when stitching clips together
+  audioParts.push('No background music');
+
+  return audioParts.join('. ');
+}
+
+/**
+ * Build character description using Meta Framework template
+ * Format: [NAME/ROLE], a [AGE] [GENDER] with [HAIR_DETAILS], [EYE_COLOR] eyes, 
+ * [BUILD], wearing [CLOTHING], with [ACCESSORIES], [EMOTIONAL_STATE]
+ */
+function buildVeo3CharacterDescription(char: CharacterProfile): string {
+  const parts: string[] = [];
+  
+  // Name/Role first
+  if (char.name) parts.push(char.name);
+  
+  // Age and gender
+  const ageGender = [char.age, char.gender].filter(Boolean).join(' ');
+  if (ageGender) parts.push(`a ${ageGender}`);
+  
+  // Physical features
+  const hairDesc = [char.hairColor, char.hairStyle, 'hair'].filter(Boolean).join(' ');
+  if (char.hairColor || char.hairStyle) parts.push(`with ${hairDesc}`);
+  
+  if (char.eyeColor) parts.push(`${char.eyeColor} eyes`);
+  if (char.skinTone) parts.push(`${char.skinTone} skin`);
+  if (char.bodyType) parts.push(char.bodyType);
+  if (char.distinguishingFeatures) parts.push(char.distinguishingFeatures);
+  
+  // Clothing
+  if (char.currentOutfit) parts.push(`wearing ${char.currentOutfit}`);
+  if (char.accessories) parts.push(`with ${char.accessories}`);
+  
+  // Emotional state
+  if (char.emotionalState) parts.push(`looking ${char.emotionalState}`);
+  
+  return parts.join(', ');
+}
+
+/**
+ * Count major actions in prompt to detect complexity
+ * Used for duration recommendations
+ */
+export function countActionsInPrompt(visualPrompt: string): number {
+  const actionVerbs = [
+    'walking', 'running', 'moving', 'dancing', 'jumping', 'flying', 'falling',
+    'rising', 'turning', 'spinning', 'fighting', 'climbing', 'swimming',
+    'driving', 'riding', 'throwing', 'catching', 'pushing', 'pulling',
+    'opening', 'closing', 'entering', 'exiting', 'transforming', 'exploding',
+    'crashing', 'chasing', 'escaping', 'attacking', 'defending'
+  ];
+  
+  const pattern = new RegExp(`\\b(${actionVerbs.join('|')})\\b`, 'gi');
+  const matches = visualPrompt.match(pattern) || [];
+  return matches.length;
+}
+
+/**
+ * Get recommended duration based on action complexity
+ * Veo 3.1 best practice: 4-6s for complex action, 8s for atmospheric
+ */
+export function getRecommendedDuration(scene: Scene): { duration: number; reason: string } {
+  const actionCount = countActionsInPrompt(scene.visualPrompt);
+  
+  // Check for camera movement complexity
+  const complexMovements = [
+    CameraMovement.ORBIT, CameraMovement.CRANE_UP, CameraMovement.CRANE_DOWN,
+    CameraMovement.TRACKING, CameraMovement.WHIP_PAN
+  ];
+  const hasComplexMovement = complexMovements.includes(scene.cameraMovement);
+  
+  // Check for dialogue
+  const hasDialogue = (scene.audio?.dialogue?.length || 0) > 0;
+  
+  if (actionCount >= 3 || (actionCount >= 2 && hasComplexMovement)) {
+    return { 
+      duration: 4, 
+      reason: 'Multiple complex actions detected - use shorter duration for stability' 
+    };
+  }
+  
+  if (actionCount >= 2 || hasComplexMovement) {
+    return { 
+      duration: 6, 
+      reason: 'Moderate action complexity - 6 seconds recommended' 
+    };
+  }
+  
+  if (hasDialogue && (scene.audio?.dialogue?.length || 0) > 2) {
+    return {
+      duration: 8,
+      reason: 'Extended dialogue - 8 seconds allows proper delivery'
+    };
+  }
+  
+  // Atmospheric/simple shots can use full duration
+  return { 
+    duration: 8, 
+    reason: 'Simple or atmospheric shot - full duration available' 
+  };
+}
+
+/**
+ * Validate video prompt for Veo 3.1 best practices
+ * Returns warnings and suggestions
+ */
+export function validateVideoPrompt(scene: Scene, config: ProjectConfig): {
+  isValid: boolean;
+  warnings: string[];
+  suggestions: string[];
+} {
+  const warnings: string[] = [];
+  const suggestions: string[] = [];
+  
+  // Check for multiple actions
+  const actionCount = countActionsInPrompt(scene.visualPrompt);
+  if (actionCount >= 3) {
+    warnings.push(`Multiple actions detected (${actionCount}). Complex multi-action scenes may fragment.`);
+    suggestions.push('Consider breaking into multiple scenes with one major action each.');
+  }
+  
+  // Check prompt length
+  if (scene.visualPrompt.length < 50) {
+    warnings.push('Prompt may be too brief for detailed generation.');
+    suggestions.push('Add more specific details about subject, environment, and lighting.');
+  }
+  
+  if (scene.visualPrompt.length > 1000) {
+    warnings.push('Prompt is very long. May cause model confusion.');
+    suggestions.push('Focus on essential visual elements and reduce redundancy.');
+  }
+  
+  // Check for vague terms
+  const vagueTerms = ['cinematic', 'beautiful', 'amazing', 'epic', 'cool'];
+  const foundVague = vagueTerms.filter(term => 
+    scene.visualPrompt.toLowerCase().includes(term)
+  );
+  if (foundVague.length > 0) {
+    suggestions.push(`Replace vague terms (${foundVague.join(', ')}) with specific visual descriptions.`);
+  }
+  
+  // Check duration vs complexity
+  const recommended = getRecommendedDuration(scene);
+  if (scene.durationEstimate > recommended.duration && actionCount >= 2) {
+    warnings.push(`Duration (${scene.durationEstimate}s) may be too long for action complexity.`);
+    suggestions.push(`Recommended: ${recommended.duration}s - ${recommended.reason}`);
+  }
+  
+  // Check for character consistency
+  if (scene.characterIds.length > 0 && config.characters.length === 0) {
+    warnings.push('Scene references characters but none are defined in project.');
+    suggestions.push('Add character profiles for consistent appearance across scenes.');
+  }
+  
+  return {
+    isValid: warnings.length === 0,
+    warnings,
+    suggestions
+  };
+}
+
+/**
+ * BUILD OPTIMIZED VIDEO PROMPT (Veo 2.0 & 3.1 Compatible)
+ * Implements the 5-Part Formula from the Meta Framework:
+ * [Cinematography] + [Subject] + [Action] + [Context] + [Style & Ambiance]
+ * 
+ * Uses natural prose format for optimal model adherence.
+ * 
+ * Compatibility:
+ * - Veo 2.0: Visual prompt optimization (no audio)
+ * - Veo 3.1: Full optimization including native audio generation
+ * 
+ * The 5-part formula and cinematography techniques work for both models
+ * since they're fundamentally about better prompt structure.
+ */
+export function buildVeo3VideoPrompt(
+  scene: Scene,
+  config: ProjectConfig,
+  options: { revisionNote?: string; includeValidation?: boolean } = {}
+): string {
+  // Get style preset
+  const stylePreset = VISUAL_STYLE_PRESETS.find(s => s.id === config.style) || VISUAL_STYLE_PRESETS[0];
+  const palette = CINEMATIC_PALETTES[config.defaultColorPalette] || CINEMATIC_PALETTES['teal-orange'];
+  
+  // ========================================
+  // PART 1: CINEMATOGRAPHY
+  // Shot type, angle, movement, lens
+  // ========================================
+  const cinematographyParts: string[] = [];
+  
+  // Shot type and angle
+  cinematographyParts.push(VEO3_SHOT_DESCRIPTORS[scene.shotType]);
+  
+  // Camera angle (skip if eye-level as it's default)
+  if (scene.cameraAngle !== CameraAngle.EYE_LEVEL) {
+    cinematographyParts.push(VEO3_ANGLE_DESCRIPTORS[scene.cameraAngle]);
+  }
+  
+  // Camera movement
+  cinematographyParts.push(VEO3_MOVEMENT_DESCRIPTORS[scene.cameraMovement]);
+  
+  // Lens/DOF only if notable
+  if (scene.depthOfField === DepthOfField.EXTREME_SHALLOW || 
+      scene.depthOfField === DepthOfField.CINEMATIC_SHALLOW) {
+    cinematographyParts.push(VEO3_DOF_DESCRIPTORS[scene.depthOfField]);
+  }
+  
+  const cinematography = cinematographyParts.join(', ');
+  
+  // ========================================
+  // PART 2: SUBJECT
+  // Characters with detailed descriptions
+  // ========================================
+  const characters = config?.characters || [];
+  const characterIds = scene?.characterIds || [];
+  const sceneCharacters = characters.filter(c => characterIds.includes(c.id));
+  
+  let subject = '';
+  if (sceneCharacters.length > 0) {
+    subject = sceneCharacters.map(c => buildVeo3CharacterDescription(c)).join(' and ');
+  } else {
+    // Extract subject from visual prompt (first sentence or clause)
+    const firstClause = scene.visualPrompt.split(/[,.]/)[0];
+    subject = firstClause.trim();
+  }
+  
+  // ========================================
+  // PART 3: ACTION
+  // What the subject is doing
+  // ========================================
+  const action = scene.visualPrompt;
+  
+  // ========================================
+  // PART 4: CONTEXT
+  // Environment, location, time
+  // ========================================
+  const locations = config?.locations || [];
+  const location = locations.find(l => l.id === scene.locationId);
+  
+  let context = '';
+  if (location) {
+    const contextParts = [location.description];
+    if (location.timeOfDay) contextParts.push(location.timeOfDay);
+    if (location.weather) contextParts.push(location.weather);
+    if (location.atmosphere) contextParts.push(location.atmosphere);
+    context = contextParts.filter(Boolean).join(', ');
+  }
+  
+  // ========================================
+  // PART 5: STYLE & AMBIANCE
+  // Lighting, color, aesthetic
+  // ========================================
+  const styleParts: string[] = [];
+  
+  // Lighting
+  styleParts.push(VEO3_LIGHTING_DESCRIPTORS[scene.lightingStyle]);
+  styleParts.push(VEO3_LIGHT_SOURCE_DESCRIPTORS[scene.lightSource]);
+  
+  // Color palette
+  if (palette.description) {
+    styleParts.push(palette.description);
+  }
+  
+  // Visual style
+  if (stylePreset.prompt) {
+    styleParts.push(stylePreset.prompt);
+  }
+  
+  // Film grain
+  if (config.filmGrain) {
+    styleParts.push('subtle film grain');
+  }
+  
+  const styleAmbiance = styleParts.join(', ');
+  
+  // ========================================
+  // BUILD FINAL PROMPT
+  // Natural prose combining all 5 parts
+  // ========================================
+  const promptParts: string[] = [];
+  
+  // Cinematography first (most important for Veo)
+  promptParts.push(cinematography);
+  
+  // Subject and action as natural prose
+  if (sceneCharacters.length > 0) {
+    promptParts.push(subject);
+    promptParts.push(action);
+  } else {
+    // Action already contains subject description
+    promptParts.push(action);
+  }
+  
+  // Context (location/environment)
+  if (context) {
+    promptParts.push(context);
+  }
+  
+  // Style and ambiance
+  promptParts.push(styleAmbiance);
+  
+  // Combine into natural prose
+  let prompt = promptParts.filter(Boolean).join('. ');
+  
+  // ========================================
+  // AUDIO SECTION (Veo 3.1 format)
+  // ========================================
+  const audioSection = buildVeo3AudioSection(scene, config);
+  if (audioSection) {
+    prompt += '. ' + audioSection;
+  }
+  
+  // ========================================
+  // REVISION INSTRUCTIONS
+  // ========================================
+  if (options.revisionNote && options.revisionNote.trim().length > 0) {
+    prompt += `. REVISION: ${options.revisionNote.trim()}. Keep identity, wardrobe, and style consistent.`;
+  }
+  
+  // ========================================
+  // QUALITY BOOSTERS
+  // ========================================
+  prompt += '. High quality, smooth motion, temporal consistency.';
+  
+  // Log for debugging
+  const modelName = config.videoModel || 'default';
+  const audioIncluded = isAudioSupportedModel(config.videoModel) && config.audioEnabled;
+  console.log(`[PromptBuilder] Optimized Prompt Generated for ${modelName} (${prompt.length} chars, audio: ${audioIncluded})`);
+  
+  return prompt;
+}
+
+/**
+ * Get Veo 3.1 negative prompt for quality control
+ */
+export function getVeo3NegativePrompt(): string {
+  return VEO3_NEGATIVE_PROMPT;
+}
+
+/**
+ * FORMAT TIMESTAMP
+ * Converts seconds to MM:SS format for timestamp prompting
+ */
+function formatTimestamp(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
+/**
+ * BUILD TIMESTAMPED PROMPT (Veo 2.0 & 3.1 Compatible)
+ * Creates multi-shot sequences within a single generation using timestamp prompting.
+ * 
+ * Format: [00:00-00:02] Shot description...
+ *         [00:02-00:04] Next shot description...
+ * 
+ * Best practices from Meta Framework:
+ * - Use 2-second segments for distinct beats
+ * - Maintain character consistency across segments
+ * - Specify camera changes at each timestamp
+ * - Include audio cues where appropriate (Veo 3.x only)
+ * - Keep total duration within 8 seconds
+ * 
+ * Compatibility:
+ * - Veo 2.0: Visual timestamps only (no audio)
+ * - Veo 3.1: Full timestamps with audio cues
+ */
+export function buildTimestampedPrompt(
+  segments: TimestampedSegment[],
+  config: ProjectConfig,
+  options: { includeAudio?: boolean } = {}
+): string {
+  if (!segments || segments.length === 0) {
+    console.warn('[PromptBuilder] No timestamped segments provided');
+    return '';
+  }
+
+  // Check if model supports audio
+  const modelSupportsAudio = isAudioSupportedModel(config.videoModel);
+  const shouldIncludeAudio = options.includeAudio && config.audioEnabled && modelSupportsAudio;
+
+  // Sort segments by start time
+  const sortedSegments = [...segments].sort((a, b) => a.startTime - b.startTime);
+  
+  // Get style preset for consistency
+  const stylePreset = VISUAL_STYLE_PRESETS.find(s => s.id === config.style) || VISUAL_STYLE_PRESETS[0];
+  
+  // Build each segment
+  const segmentPrompts: string[] = [];
+  
+  for (const segment of sortedSegments) {
+    const timeRange = `[${formatTimestamp(segment.startTime)}-${formatTimestamp(segment.endTime)}]`;
+    
+    // Build segment description
+    const parts: string[] = [];
+    
+    // Camera work
+    if (segment.shotType) {
+      parts.push(VEO3_SHOT_DESCRIPTORS[segment.shotType]);
+    }
+    if (segment.cameraAngle && segment.cameraAngle !== CameraAngle.EYE_LEVEL) {
+      parts.push(VEO3_ANGLE_DESCRIPTORS[segment.cameraAngle]);
+    }
+    if (segment.cameraMovement) {
+      parts.push(VEO3_MOVEMENT_DESCRIPTORS[segment.cameraMovement]);
+    }
+    
+    // Main description
+    parts.push(segment.description);
+    
+    // Audio for this segment (only if model supports it)
+    if (shouldIncludeAudio && segment.audio) {
+      // Dialogue
+      if (segment.audio.dialogue && segment.audio.dialogue.length > 0) {
+        for (const line of segment.audio.dialogue) {
+          const speaker = (line.speaker || 'speaker').trim();
+          const delivery = (line.delivery || '').trim();
+          const text = (line.text || '').trim();
+          if (text) {
+            if (delivery) {
+              parts.push(`The ${speaker} says in a ${delivery} voice: "${text}"`);
+            } else {
+              parts.push(`The ${speaker} says: "${text}"`);
+            }
+          }
+        }
+      }
+      
+      // SFX
+      if (segment.audio.sfx) {
+        parts.push(`SFX: ${segment.audio.sfx}`);
+      }
+      
+      // Ambience
+      if (segment.audio.ambience) {
+        parts.push(`Ambient noise: ${segment.audio.ambience}`);
+      }
+    }
+    
+    // Combine with timestamp
+    const segmentText = `${timeRange} ${parts.join(', ')}`;
+    segmentPrompts.push(segmentText);
+  }
+  
+  // Join all segments
+  let prompt = segmentPrompts.join('\n\n');
+  
+  // Add global style at the end
+  if (stylePreset.prompt) {
+    prompt += `\n\n${stylePreset.prompt}. High quality, smooth motion, temporal consistency.`;
+  }
+  
+  // Add audio instructions if audio is enabled
+  if (shouldIncludeAudio) {
+    prompt += ' Natural foley and sound effects. No background music.';
+  }
+  
+  console.log(`[PromptBuilder] Timestamped Prompt Generated (${sortedSegments.length} segments)`);
+  
+  return prompt;
+}
+
+/**
+ * Check if scene has timestamped segments
+ */
+export function hasTimestampedSegments(scene: Scene): boolean {
+  return Boolean(scene.timestampedSegments && scene.timestampedSegments.length > 0);
 }
 
 /**

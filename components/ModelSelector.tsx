@@ -1,5 +1,7 @@
 import React from 'react';
 import { VideoModel } from '@/types';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface ModelSelectorProps {
   currentModel?: VideoModel;
@@ -13,31 +15,33 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   disabled = false
 }) => {
   return (
-    <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-xl border border-white/10">
-      <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Video Model</span>
-      <div className="flex bg-black/40 p-1 rounded-lg">
-        <button
+    <div className="flex items-center gap-3 bg-muted px-4 py-2 rounded-xl border border-border">
+      <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Video Model</span>
+      <div className="flex bg-background p-1 rounded-lg border border-border">
+        <Button
+          variant={currentModel === VideoModel.VEO_3_1 ? "default" : "ghost"}
+          size="sm"
           onClick={() => onSelect(VideoModel.VEO_3_1)}
           disabled={disabled}
-          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-            currentModel === VideoModel.VEO_3_1 
-              ? 'bg-dlm-accent text-black shadow-lg' 
-              : 'text-gray-400 hover:text-white'
-          }`}
+          className={cn(
+            "h-7 px-3 text-sm",
+            currentModel === VideoModel.VEO_3_1 && "shadow-lg"
+          )}
         >
           Veo 3.1
-        </button>
-        <button
+        </Button>
+        <Button
+          variant={currentModel === VideoModel.VEO_2_0 || (currentModel as any) === 'veo-2.0-generate-preview' ? "default" : "ghost"}
+          size="sm"
           onClick={() => onSelect(VideoModel.VEO_2_0)}
           disabled={disabled}
-          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-            currentModel === VideoModel.VEO_2_0 || (currentModel as any) === 'veo-2.0-generate-preview'
-              ? 'bg-dlm-accent text-black shadow-lg' 
-              : 'text-gray-400 hover:text-white'
-          }`}
+          className={cn(
+            "h-7 px-3 text-sm",
+            (currentModel === VideoModel.VEO_2_0 || (currentModel as any) === 'veo-2.0-generate-preview') && "shadow-lg"
+          )}
         >
           Veo 2.0
-        </button>
+        </Button>
       </div>
     </div>
   );

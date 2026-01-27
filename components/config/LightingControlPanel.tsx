@@ -1,5 +1,14 @@
 import React from 'react';
 import { ProjectConfig, LightingGuide, LightingStyle } from '@/types';
+import { Card } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface LightingControlPanelProps {
   config: ProjectConfig;
@@ -12,66 +21,78 @@ export const LightingControlPanel: React.FC<LightingControlPanelProps> = ({ conf
 
   const updateLighting = (key: keyof LightingGuide, value: any) => {
     onUpdate({
-       lightingGuide: {
-          ...config.lightingGuide,
-          [key]: value
-       }
+      lightingGuide: {
+        ...config.lightingGuide,
+        [key]: value
+      }
     });
   };
 
   return (
-     <div className="card-elevated p-6 space-y-6 border-l-2 border-l-dlm-accent/50">
-       <h3 className="text-lg font-medium text-white flex items-center gap-2">
-          Global Lighting System
-       </h3>
-       
-       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2">
-             <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                Base Style
-             </label>
-             <select
-                value={config.lightingGuide.globalStyle}
-                onChange={(e) => updateLighting('globalStyle', e.target.value)}
-                className="input select w-full font-mono text-xs bg-black/40 border-white/10"
-             >
-                {Object.values(LightingStyle).map(s => (
-                    <option key={s} value={s}>{s}</option>
-                ))}
-             </select>
-          </div>
+    <Card className="p-6 space-y-6 border-l-2 border-l-primary/50">
+      <h3 className="text-lg font-medium flex items-center gap-2">
+        Global Lighting System
+      </h3>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+            Base Style
+          </Label>
+          <Select
+            value={config.lightingGuide.globalStyle}
+            onValueChange={(value) => updateLighting('globalStyle', value)}
+          >
+            <SelectTrigger className="font-mono text-base">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.values(LightingStyle).map(s => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-          <div className="space-y-2">
-             <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                Contrast Ratio
-             </label>
-             <select
-                value={config.lightingGuide.preferredRatios}
-                onChange={(e) => updateLighting('preferredRatios', e.target.value)}
-                className="input select w-full font-mono text-xs bg-black/40 border-white/10"
-             >
-                <option value="low_contrast">Low Contrast (Flat/Even)</option>
-                <option value="balanced">Balanced</option>
-                <option value="high_contrast">High Contrast (Dramatic)</option>
-             </select>
-          </div>
+        <div className="space-y-2">
+          <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+            Contrast Ratio
+          </Label>
+          <Select
+            value={config.lightingGuide.preferredRatios}
+            onValueChange={(value) => updateLighting('preferredRatios', value)}
+          >
+            <SelectTrigger className="font-mono text-base">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="low_contrast">Low Contrast (Flat/Even)</SelectItem>
+              <SelectItem value="balanced">Balanced</SelectItem>
+              <SelectItem value="high_contrast">High Contrast (Dramatic)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-           <div className="space-y-2">
-             <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                Key Light Position
-             </label>
-             <select
-                value={config.lightingGuide.keyLightPosition || 'right'}
-                onChange={(e) => updateLighting('keyLightPosition', e.target.value)}
-                className="input select w-full font-mono text-xs bg-black/40 border-white/10"
-             >
-                <option value="left">Left</option>
-                <option value="right">Right</option>
-                <option value="overhead">Overhead</option>
-                <option value="bottom">Bottom (Horror/Unnatural)</option>
-             </select>
-          </div>
-       </div>
-    </div>
+        <div className="space-y-2">
+          <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+            Key Light Position
+          </Label>
+          <Select
+            value={config.lightingGuide.keyLightPosition || 'right'}
+            onValueChange={(value) => updateLighting('keyLightPosition', value)}
+          >
+            <SelectTrigger className="font-mono text-base">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="left">Left</SelectItem>
+              <SelectItem value="right">Right</SelectItem>
+              <SelectItem value="overhead">Overhead</SelectItem>
+              <SelectItem value="bottom">Bottom (Horror/Unnatural)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    </Card>
   );
 };

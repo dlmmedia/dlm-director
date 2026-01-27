@@ -19,6 +19,7 @@ import {
 } from '@/components/Icons';
 import { ModelSelector } from '@/components/ModelSelector';
 import { VideoGenerationSettings } from '@/components/VideoGenerationSettings';
+import { PromptEnhanceModal } from '@/components/PromptEnhanceModal';
 import { 
   downloadFile, 
   downloadImagesZip, 
@@ -69,6 +70,7 @@ export default function ProductionStep({
   const [settingsSceneId, setSettingsSceneId] = useState<number | null>(null);
   const [menuSceneId, setMenuSceneId] = useState<number | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [refineModal, setRefineModal] = useState<{ scene: Scene; type: 'image' | 'video' } | null>(null);
   
   // Safe play handling
   const videoRefs = useRef<{[key: number]: HTMLVideoElement | null}>({});
@@ -165,15 +167,15 @@ export default function ProductionStep({
         <div>
         <div className="flex justify-between items-end flex-wrap gap-4">
           <div>
-            <h2 className="text-3xl font-light text-white mb-3">Production Studio</h2>
-            <div className="flex gap-6 text-sm">
-              <span className="text-gray-400">
-                <strong className="text-blue-400">{imagesReady}</strong>/{config.scenes.length} Images
+            <h2 className="text-3xl font-light text-gray-900 dark:text-white mb-3">Production Studio</h2>
+            <div className="flex gap-6 text-base">
+              <span className="text-gray-500 dark:text-gray-400">
+                <strong className="text-blue-600 dark:text-blue-400">{imagesReady}</strong>/{config.scenes.length} Images
               </span>
-              <span className="text-gray-400">
-                <strong className="text-green-400">{videosReady}</strong>/{config.scenes.length} Videos
+              <span className="text-gray-500 dark:text-gray-400">
+                <strong className="text-green-600 dark:text-green-400">{videosReady}</strong>/{config.scenes.length} Videos
               </span>
-              <span className="text-gray-400">
+              <span className="text-gray-500 dark:text-gray-400">
                 {totalDuration}s Total
               </span>
             </div>
@@ -187,14 +189,14 @@ export default function ProductionStep({
                     <span>Add Scene</span>
                   </button>
                 )}
-                <label className="flex items-center gap-2 cursor-pointer bg-white/5 px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/30 transition-colors">
+                <label className="flex items-center gap-2 cursor-pointer bg-gray-100 dark:bg-white/5 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/30 transition-colors">
                   <input
                     type="checkbox"
                     checked={config.audioEnabled || false}
                     onChange={(e) => onUpdateConfig({ audioEnabled: e.target.checked })}
-                    className="w-4 h-4 rounded border-gray-500 text-dlm-accent focus:ring-dlm-accent bg-transparent"
+                    className="w-4 h-4 rounded border-gray-400 dark:border-gray-500 text-dlm-accent focus:ring-dlm-accent bg-transparent"
                   />
-                  <span className="text-xs font-medium text-gray-300">Generate Audio</span>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Generate Audio</span>
                 </label>
                 <ModelSelector 
                   currentModel={config.videoModel} 
@@ -204,7 +206,7 @@ export default function ProductionStep({
               </div>
             )}
 
-            <div className="h-8 w-px bg-white/10 mx-2" />
+            <div className="h-8 w-px bg-gray-200 dark:bg-white/10 mx-2" />
 
             <div className="flex flex-col gap-2">
               <button 
@@ -246,7 +248,7 @@ export default function ProductionStep({
               )}
             </button>
 
-            <div className="h-8 w-px bg-white/10 mx-2" />
+            <div className="h-8 w-px bg-gray-200 dark:bg-white/10 mx-2" />
 
             <button 
               onClick={onGenerateAllVideos}
@@ -304,18 +306,18 @@ export default function ProductionStep({
         {config.scenes.map((scene, idx) => (
           <div
             key={scene.id}
-            className="card-elevated overflow-hidden relative group flex flex-col h-full border-t-2 border-t-transparent hover:border-t-dlm-accent transition-all duration-300"
+            className="card-elevated overflow-hidden relative group flex flex-col h-full border-t-2 border-t-transparent hover:border-t-dlm-accent transition-all duration-300 bg-white dark:bg-transparent"
             onClick={() => setMenuSceneId(null)}
           >
             {/* Status Badge - OSD Style */}
             <div className="absolute top-4 left-4 z-20 pointer-events-none">
-              <div className={`px-3 py-1.5 rounded bg-black/80 backdrop-blur-md border border-white/10 font-mono text-[10px] font-bold tracking-widest flex items-center gap-2 shadow-lg ${
-                scene.status === 'pending' ? 'text-gray-400' :
-                scene.status === 'generating_image' ? 'text-yellow-400 border-yellow-500/30' :
-                scene.status === 'image_ready' ? 'text-blue-400 border-blue-500/30' :
-                scene.status === 'generating_video' ? 'text-purple-400 border-purple-500/30' :
-                scene.status === 'video_ready' ? 'text-green-400 border-green-500/30' :
-                'text-red-400 border-red-500/30'
+              <div className={`px-3 py-1.5 rounded bg-white/90 dark:bg-black/80 backdrop-blur-md border border-gray-200 dark:border-white/10 font-mono text-xs font-bold tracking-widest flex items-center gap-2 shadow-lg ${
+                scene.status === 'pending' ? 'text-gray-500 dark:text-gray-400' :
+                scene.status === 'generating_image' ? 'text-yellow-600 dark:text-yellow-400 border-yellow-500/30' :
+                scene.status === 'image_ready' ? 'text-blue-600 dark:text-blue-400 border-blue-500/30' :
+                scene.status === 'generating_video' ? 'text-purple-600 dark:text-purple-400 border-purple-500/30' :
+                scene.status === 'video_ready' ? 'text-green-600 dark:text-green-400 border-green-500/30' :
+                'text-red-600 dark:text-red-400 border-red-500/30'
               }`}>
                 {scene.status === 'pending' && <span className="w-1.5 h-1.5 rounded-full bg-gray-500" />}
                 {scene.status === 'generating_image' && <LoadingSpinner size={10} color="currentColor" />}
@@ -333,7 +335,7 @@ export default function ProductionStep({
             </div>
 
             {/* Main Visual Area */}
-            <div className="aspect-video bg-black/50 relative flex items-center justify-center overflow-hidden border-b border-white/5">
+            <div className="aspect-video bg-gray-100 dark:bg-black/50 relative flex items-center justify-center overflow-hidden border-b border-gray-200 dark:border-white/5">
               {playingSceneId === scene.id && scene.videoUrl ? (
                 <video 
                   ref={el => { videoRefs.current[scene.id] = el; }}
@@ -385,10 +387,10 @@ export default function ProductionStep({
             <div className="p-7 flex flex-col flex-grow gap-6">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
-                  <span className="shrink-0 text-dlm-accent font-bold font-mono text-xs tracking-wider bg-dlm-accent/10 px-2 py-1 rounded border border-dlm-accent/20">
+                  <span className="shrink-0 text-dlm-accent font-bold font-mono text-sm tracking-wider bg-dlm-accent/10 px-2 py-1 rounded border border-dlm-accent/20">
                     SCENE {String(idx + 1).padStart(2, '0')}
                   </span>
-                  <span className="text-xs text-gray-500 font-mono tracking-wider shrink-0">{scene.durationEstimate}S</span>
+                  <span className="text-sm text-gray-500 font-mono tracking-wider shrink-0">{scene.durationEstimate}S</span>
                 </div>
 
                 {/* Card Menu */}
@@ -398,7 +400,7 @@ export default function ProductionStep({
                       e.stopPropagation();
                       setMenuSceneId(menuSceneId === scene.id ? null : scene.id);
                     }}
-                    className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white transition-colors"
+                    className="p-2 rounded-lg bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
                     title="Scene actions"
                     aria-haspopup="menu"
                     aria-expanded={menuSceneId === scene.id}
@@ -413,17 +415,17 @@ export default function ProductionStep({
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -6, scale: 0.98 }}
                         transition={{ duration: 0.12 }}
-                        className="absolute right-0 mt-2 w-56 rounded-xl border border-white/10 bg-black/90 backdrop-blur-md shadow-2xl z-30 overflow-hidden"
+                        className="absolute right-0 mt-2 w-56 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-black/90 backdrop-blur-md shadow-2xl z-30 overflow-hidden"
                         onClick={(e) => e.stopPropagation()}
                         role="menu"
                       >
-                        <div className="px-3 py-2 text-[10px] font-mono tracking-widest uppercase text-gray-500 border-b border-white/10">
+                        <div className="px-3 py-2 text-xs font-mono tracking-widest uppercase text-gray-500 border-b border-gray-200 dark:border-white/10">
                           Scene {idx + 1}
                         </div>
 
                         <div className="p-2 space-y-1">
                           <button
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/10 transition-colors disabled:opacity-30"
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-base text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors disabled:opacity-30"
                             onClick={() => { handleMoveScene(idx, 'up'); setMenuSceneId(null); }}
                             disabled={idx === 0}
                             role="menuitem"
@@ -433,7 +435,7 @@ export default function ProductionStep({
                             <span>Move up</span>
                           </button>
                           <button
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/10 transition-colors disabled:opacity-30"
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-base text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors disabled:opacity-30"
                             onClick={() => { handleMoveScene(idx, 'down'); setMenuSceneId(null); }}
                             disabled={idx === config.scenes.length - 1}
                             role="menuitem"
@@ -445,7 +447,7 @@ export default function ProductionStep({
 
                           {onUpdateConfig && (
                             <button
-                              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/10 transition-colors"
+                              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-base text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
                               onClick={() => { setSettingsSceneId(scene.id); setMenuSceneId(null); }}
                               role="menuitem"
                               title="Open video generation settings"
@@ -457,7 +459,7 @@ export default function ProductionStep({
 
                           {scene.imageUrl && (
                             <button
-                              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/10 transition-colors"
+                              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-base text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
                               onClick={() => { downloadFile(scene.imageUrl!, `scene_${scene.id}.png`); setMenuSceneId(null); }}
                               role="menuitem"
                             >
@@ -467,7 +469,7 @@ export default function ProductionStep({
                           )}
                           {scene.videoUrl && (
                             <button
-                              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/10 transition-colors"
+                              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-base text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
                               onClick={() => { downloadFile(scene.videoUrl!, `scene_${scene.id}.mp4`); setMenuSceneId(null); }}
                               role="menuitem"
                             >
@@ -478,7 +480,7 @@ export default function ProductionStep({
 
                           {scene.videoUrl && onExtendVideo && (
                             <button
-                              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/10 transition-colors disabled:opacity-30"
+                              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-base text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors disabled:opacity-30"
                               onClick={() => { onExtendVideo(scene.id); setMenuSceneId(null); }}
                               disabled={scene.status === 'generating_video'}
                               role="menuitem"
@@ -490,9 +492,9 @@ export default function ProductionStep({
 
                           {onDeleteScene && (
                             <>
-                              <div className="h-px bg-white/10 my-1" />
+                              <div className="h-px bg-gray-200 dark:bg-white/10 my-1" />
                               <button
-                                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-red-300 hover:bg-red-500/10 transition-colors"
+                                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-base text-red-600 dark:text-red-300 hover:bg-red-500/10 transition-colors"
                                 onClick={() => {
                                   if (confirm(`Delete Scene ${idx + 1}? This cannot be undone.`)) {
                                     onDeleteScene(scene.id);
@@ -513,67 +515,55 @@ export default function ProductionStep({
                 </div>
               </div>
 
-              <p className="text-gray-300 text-sm leading-relaxed min-h-[3rem]">{scene.narration}</p>
+              <p className="text-gray-700 dark:text-gray-300 text-base leading-relaxed min-h-[3rem]">{scene.narration}</p>
               
               {/* Cinematography tags */}
               <div className="flex flex-wrap gap-2">
                 {[scene.shotType, scene.cameraMovement, scene.lightingStyle].map((tag, i) => (
-                    <span key={i} className="text-[10px] uppercase tracking-wider px-2 py-1 rounded bg-white/5 border border-white/5 text-gray-400 font-mono">
+                    <span key={i} className="text-xs uppercase tracking-wider px-2 py-1 rounded bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 text-gray-600 dark:text-gray-400 font-mono">
                       {tag.split(' ')[0]}
                     </span>
                 ))}
               </div>
 
-              {/* Refine (collapsible to avoid cramped cards) */}
+              {/* Refine - Opens modal for better editing experience */}
               {(scene.imageUrl || scene.videoUrl) && (
-                <details className="rounded-xl border border-white/10 bg-black/20 overflow-hidden group">
-                  <summary className="cursor-pointer list-none px-4 py-3 flex items-center justify-between gap-3 hover:bg-white/5 transition-colors">
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold text-gray-200">Refine</div>
-                      <div className="text-[11px] text-gray-500 truncate">
-                        Notes for regeneration / re-rendering
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div className="text-[10px] font-mono tracking-widest text-gray-500 group-open:text-gray-300">
-                        {scene.imageRevisionNote || scene.videoRevisionNote ? 'EDITED' : 'ADD NOTE'}
-                      </div>
-                      <div className="text-gray-500 group-open:text-gray-300 transition-transform duration-200 group-open:rotate-180">
-                        <ChevronDownIcon />
-                      </div>
-                    </div>
-                  </summary>
-                  <div className="p-4 space-y-4 border-t border-white/10">
+                <div className="rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-black/20 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-200 dark:border-white/10">
+                    <div className="text-sm font-semibold text-gray-800 dark:text-gray-200">Refine</div>
+                    <div className="text-xs text-gray-500">Click to add refinement notes with AI enhancement</div>
+                  </div>
+                  <div className="p-3 flex flex-wrap gap-2">
                     {scene.imageUrl && (
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">
-                          Image note
-                        </label>
-                        <textarea
-                          value={scene.imageRevisionNote || ''}
-                          onChange={(e) => handleUpdateScene(scene.id, { imageRevisionNote: e.target.value })}
-                          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs placeholder:text-gray-600 resize-none"
-                          placeholder="e.g. lower camera angle; fix composition; reduce highlights; move subject left"
-                          rows={2}
-                        />
-                      </div>
+                      <button
+                        onClick={() => setRefineModal({ scene, type: 'image' })}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 hover:border-purple-500 dark:hover:border-purple-500/50 hover:bg-purple-50 dark:hover:bg-purple-500/10 transition-all group"
+                      >
+                        <SparkleIcon />
+                        <div className="text-left">
+                          <div className="text-sm font-medium text-gray-800 dark:text-gray-200 group-hover:text-purple-600 dark:group-hover:text-purple-400">Image Refine</div>
+                          <div className="text-xs text-gray-500 truncate max-w-[140px]">
+                            {scene.imageRevisionNote || 'Add note...'}
+                          </div>
+                        </div>
+                      </button>
                     )}
                     {scene.videoUrl && (
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">
-                          Video note
-                        </label>
-                        <textarea
-                          value={scene.videoRevisionNote || ''}
-                          onChange={(e) => handleUpdateScene(scene.id, { videoRevisionNote: e.target.value })}
-                          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs placeholder:text-gray-600 resize-none"
-                          placeholder="e.g. slower push-in; less shake; keep framing consistent; reduce brightness"
-                          rows={2}
-                        />
-                      </div>
+                      <button
+                        onClick={() => setRefineModal({ scene, type: 'video' })}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 hover:border-purple-500 dark:hover:border-purple-500/50 hover:bg-purple-50 dark:hover:bg-purple-500/10 transition-all group"
+                      >
+                        <SparkleIcon />
+                        <div className="text-left">
+                          <div className="text-sm font-medium text-gray-800 dark:text-gray-200 group-hover:text-purple-600 dark:group-hover:text-purple-400">Video Refine</div>
+                          <div className="text-xs text-gray-500 truncate max-w-[140px]">
+                            {scene.videoRevisionNote || 'Add note...'}
+                          </div>
+                        </div>
+                      </button>
                     )}
                   </div>
-                </details>
+                </div>
               )}
               
               {/* Action Buttons */}
@@ -583,7 +573,7 @@ export default function ProductionStep({
                     {scene.status === 'generating_image' && onCancelGeneration && (
                       <button
                         onClick={(e) => { e.stopPropagation(); onCancelGeneration(scene.id); }}
-                        className="absolute top-2 right-2 p-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 rounded-lg border border-red-500/20 transition-colors"
+                        className="absolute top-2 right-2 p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 dark:text-red-300 rounded-lg border border-red-500/20 transition-colors"
                         title="Cancel image generation"
                       >
                         <XIcon />
@@ -592,13 +582,13 @@ export default function ProductionStep({
                     <button
                       onClick={(e) => { e.stopPropagation(); onGenerateImage(scene.id, scene.imageRevisionNote); }}
                       disabled={scene.status === 'generating_image'}
-                      className={`w-full text-left p-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all disabled:opacity-50 min-h-[84px] ${
+                      className={`w-full text-left p-4 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 hover:border-gray-300 dark:hover:border-white/20 transition-all disabled:opacity-50 min-h-[84px] ${
                         scene.status === 'generating_image' && onCancelGeneration ? 'pr-12' : ''
                       }`}
                       title={scene.imageUrl ? 'Regenerate image' : 'Generate image'}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-black/30 border border-white/10 flex items-center justify-center text-white shrink-0">
+                        <div className="w-9 h-9 rounded-lg bg-gray-200 dark:bg-black/30 border border-gray-300 dark:border-white/10 flex items-center justify-center text-gray-700 dark:text-white shrink-0">
                           {scene.status === 'generating_image' ? (
                             <LoadingSpinner size={16} color="currentColor" />
                           ) : (
@@ -606,12 +596,12 @@ export default function ProductionStep({
                           )}
                         </div>
                         <div className="min-w-0">
-                          <div className="text-xs font-bold uppercase tracking-wide text-white leading-tight">
+                          <div className="text-sm font-bold uppercase tracking-wide text-gray-900 dark:text-white leading-tight">
                             {scene.status === 'generating_image'
                               ? 'Generating…'
                               : (scene.imageUrl ? 'Regenerate image' : 'Generate image')}
                           </div>
-                          <div className="text-[11px] text-gray-500 leading-snug">
+                          <div className="text-xs text-gray-500 leading-snug">
                             Uses refine note (optional)
                           </div>
                         </div>
@@ -623,7 +613,7 @@ export default function ProductionStep({
                     {scene.status === 'generating_video' && onCancelGeneration && (
                       <button
                         onClick={(e) => { e.stopPropagation(); onCancelGeneration(scene.id); }}
-                        className="absolute top-2 right-2 p-2 bg-red-500/10 hover:bg-red-500/20 text-red-300 rounded-lg border border-red-500/20 transition-colors"
+                        className="absolute top-2 right-2 p-2 bg-red-500/20 hover:bg-red-500/30 text-red-600 dark:text-red-300 rounded-lg border border-red-500/30 transition-colors"
                         title="Cancel video generation"
                       >
                         <XIcon />
@@ -634,7 +624,7 @@ export default function ProductionStep({
                       disabled={!scene.imageUrl || (scene.status === 'generating_video' && !scene.videoUrl)}
                       className={`w-full text-left p-4 rounded-xl transition-all disabled:opacity-30 min-h-[84px] ${
                         scene.videoUrl
-                          ? 'border border-green-500/20 bg-green-500/10 hover:bg-green-500/20'
+                          ? 'border-2 border-green-500 bg-green-50 dark:bg-green-500/20 hover:bg-green-100 dark:hover:bg-green-500/30'
                           : 'bg-gradient-to-r from-dlm-accent to-yellow-500 text-black hover:brightness-110 border-0'
                       } ${scene.status === 'generating_video' && onCancelGeneration ? 'pr-12' : ''}`}
                       title={scene.videoUrl ? 'Re-render video' : 'Render video'}
@@ -643,7 +633,7 @@ export default function ProductionStep({
                         <div
                           className={`w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 ${
                             scene.videoUrl
-                              ? 'bg-black/30 border-green-500/20 text-green-200'
+                              ? 'bg-green-500 border-green-600 text-white'
                               : 'bg-black/20 border-black/20 text-black'
                           }`}
                         >
@@ -654,12 +644,12 @@ export default function ProductionStep({
                           )}
                         </div>
                         <div className="min-w-0">
-                          <div className={`text-xs font-bold uppercase tracking-wide leading-tight ${scene.videoUrl ? 'text-green-200' : 'text-black'}`}>
+                          <div className={`text-sm font-bold uppercase tracking-wide leading-tight ${scene.videoUrl ? 'text-green-700 dark:text-green-300' : 'text-black'}`}>
                             {scene.videoUrl
                               ? 'Re-render video'
                               : (scene.status === 'generating_video' ? 'Rendering…' : 'Render video')}
                           </div>
-                          <div className={`text-[11px] leading-snug ${scene.videoUrl ? 'text-green-200/60' : 'text-black/60'}`}>
+                          <div className={`text-xs leading-snug ${scene.videoUrl ? 'text-green-600 dark:text-green-400' : 'text-black/60'}`}>
                             Requires an image
                           </div>
                         </div>
@@ -670,7 +660,7 @@ export default function ProductionStep({
               </div>
               
               {scene.errorMsg && (
-                <p className="text-red-400 text-xs bg-red-500/10 rounded-lg p-3 border border-red-500/20 font-mono mt-2">
+                <p className="text-red-600 dark:text-red-400 text-sm bg-red-500/10 rounded-lg p-3 border border-red-500/20 font-mono mt-2">
                   ERROR: {scene.errorMsg}
                 </p>
               )}
@@ -1052,6 +1042,26 @@ export default function ProductionStep({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Refine Modal */}
+      <PromptEnhanceModal
+        isOpen={!!refineModal}
+        onClose={() => setRefineModal(null)}
+        title={refineModal ? `Refine Scene ${config.scenes.findIndex(s => s.id === refineModal.scene.id) + 1} ${refineModal.type === 'image' ? 'Image' : 'Video'}` : ''}
+        initialPrompt={refineModal ? (refineModal.type === 'image' ? refineModal.scene.imageRevisionNote || '' : refineModal.scene.videoRevisionNote || '') : ''}
+        onSave={(enhanced) => {
+          if (refineModal) {
+            if (refineModal.type === 'image') {
+              handleUpdateScene(refineModal.scene.id, { imageRevisionNote: enhanced });
+            } else {
+              handleUpdateScene(refineModal.scene.id, { videoRevisionNote: enhanced });
+            }
+          }
+        }}
+        contextType={refineModal?.type === 'image' ? 'image_refine' : 'video_refine'}
+        scene={refineModal?.scene}
+        config={config}
+      />
       </div>
     </div>
   );
