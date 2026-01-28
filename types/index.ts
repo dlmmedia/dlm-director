@@ -13,7 +13,15 @@ export enum VideoCategory {
   FASHION = 'Fashion Film',
   SHORTS = 'Vertical Short / Reel',
   EXPLAINER = 'Explainer / Voiceover',
-  EXPERIMENTAL = 'Experimental / Art Film'
+  EXPERIMENTAL = 'Experimental / Art Film',
+  SPORTS = 'Sports Highlight',
+  GAMING = 'Gaming / Esports',
+  WEDDING = 'Wedding / Event',
+  TUTORIAL = 'Tutorial / How-To',
+  TRAVEL = 'Travel / Adventure',
+  FOOD = 'Food / Culinary',
+  REAL_ESTATE = 'Real Estate / Architecture',
+  PODCAST = 'Podcast / Interview'
 }
 
 // --- VIDEO MODELS ---
@@ -748,6 +756,321 @@ export const VISUAL_STYLE_PRESETS: VisualStylePreset[] = [
     defaultSubjectBehavior: {
       gazeDirection: 'camera',
       eyeContact: true,
+      movementStyle: 'minimal'
+    },
+    defaultAspectRatio: AspectRatio.WIDESCREEN
+  },
+  // --- NEW PRESETS ---
+  {
+    id: 'sports-action',
+    name: 'Sports / High-Action',
+    prompt: 'dynamic sports photography, high-speed action, motion blur on background, sharp subject focus, broadcast quality, dramatic angles, peak action moments, athletic intensity',
+    negativePrompt: 'static, slow, blurry subject, amateur, low quality, posed',
+    defaultCamera: CameraBody.RED_V_RAPTOR,
+    defaultLens: LensType.SIGMA_CINE,
+    defaultTextureConfig: {
+      skinDetail: 'natural',
+      skinImperfections: true,
+      fabricTexture: 'high_fidelity',
+      environmentDetail: 'high_complexity',
+      reflectiveSurfaces: true
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.HARD_DIRECTIONAL,
+      preferredRatios: 'high_contrast',
+      fillLightIntensity: 'subtle'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'off_camera',
+      eyeContact: false,
+      movementStyle: 'dynamic'
+    },
+    defaultAspectRatio: AspectRatio.WIDESCREEN
+  },
+  {
+    id: 'horror-thriller',
+    name: 'Horror / Psychological Thriller',
+    prompt: 'horror atmosphere, unsettling tension, shadows and darkness, desaturated colors, psychological dread, film grain, ominous mood, creeping unease',
+    negativePrompt: 'bright, cheerful, colorful, happy, cartoon, anime, comedy',
+    defaultCamera: CameraBody.ARRI_ALEXA_MINI,
+    defaultLens: LensType.VINTAGE_COOKE,
+    defaultTextureConfig: {
+      skinDetail: 'rough',
+      skinImperfections: true,
+      fabricTexture: 'visible_weave',
+      environmentDetail: 'high_complexity',
+      reflectiveSurfaces: false
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.LOW_KEY,
+      preferredRatios: 'high_contrast',
+      fillLightIntensity: 'none'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'variable',
+      eyeContact: true,
+      movementStyle: 'stylized'
+    },
+    defaultAspectRatio: AspectRatio.CINEMA
+  },
+  {
+    id: 'wedding-romance',
+    name: 'Wedding / Romantic',
+    prompt: 'romantic wedding film, soft dreamy lighting, golden hour warmth, shallow depth of field, intimate moments, elegant, timeless beauty, bokeh highlights, love story',
+    negativePrompt: 'harsh, dark, gritty, horror, neon, cold, industrial',
+    defaultCamera: CameraBody.SONY_VENICE,
+    defaultLens: LensType.LEICA_SUMMILUX,
+    defaultTextureConfig: {
+      skinDetail: 'smooth',
+      skinImperfections: false,
+      fabricTexture: 'high_fidelity',
+      environmentDetail: 'balanced',
+      reflectiveSurfaces: false
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.SOFT_DIFFUSED,
+      preferredRatios: 'low_contrast',
+      fillLightIntensity: 'strong'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'interactive',
+      eyeContact: false,
+      movementStyle: 'natural'
+    },
+    defaultAspectRatio: AspectRatio.CINEMA
+  },
+  {
+    id: 'nature-wildlife',
+    name: 'Nature / Wildlife Documentary',
+    prompt: 'BBC nature documentary style, wildlife cinematography, telephoto compression, natural habitats, golden hour lighting, breathtaking landscapes, patient observation, majestic wildlife',
+    negativePrompt: 'urban, artificial, studio, neon, dark, horror, indoor',
+    defaultCamera: CameraBody.RED_V_RAPTOR,
+    defaultLens: LensType.SPHERICAL_PRIME,
+    defaultTextureConfig: {
+      skinDetail: 'highly_detailed',
+      skinImperfections: true,
+      fabricTexture: 'visible_weave',
+      environmentDetail: 'high_complexity',
+      reflectiveSurfaces: false
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.MOTIVATED,
+      preferredRatios: 'balanced',
+      fillLightIntensity: 'subtle'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'off_camera',
+      eyeContact: false,
+      movementStyle: 'natural'
+    },
+    defaultAspectRatio: AspectRatio.CINEMA
+  },
+  {
+    id: 'food-culinary',
+    name: 'Food / Culinary',
+    prompt: 'professional food photography, appetizing, warm lighting, steam and texture detail, shallow depth of field, high-end restaurant quality, gourmet presentation, delicious',
+    negativePrompt: 'cold lighting, unappetizing, blurry, low quality, dark, messy',
+    defaultCamera: CameraBody.HASSELBLAD_PRIME,
+    defaultLens: LensType.MODERN_ZEISS,
+    defaultTextureConfig: {
+      skinDetail: 'highly_detailed',
+      skinImperfections: true,
+      fabricTexture: 'high_fidelity',
+      environmentDetail: 'minimalist',
+      reflectiveSurfaces: true
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.SOFT_DIFFUSED,
+      preferredRatios: 'balanced',
+      keyLightPosition: 'left',
+      fillLightIntensity: 'strong'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'camera',
+      eyeContact: false,
+      movementStyle: 'minimal'
+    },
+    defaultAspectRatio: AspectRatio.WIDESCREEN
+  },
+  {
+    id: 'travel-adventure',
+    name: 'Travel / Adventure',
+    prompt: 'epic travel cinematography, wanderlust, breathtaking vistas, drone perspectives, golden hour magic, adventure lifestyle, cinematic exploration, stunning destinations',
+    negativePrompt: 'indoor, studio, static, dark, horror, urban decay, mundane',
+    defaultCamera: CameraBody.SONY_FX3,
+    defaultLens: LensType.SPHERICAL_PRIME,
+    defaultTextureConfig: {
+      skinDetail: 'natural',
+      skinImperfections: true,
+      fabricTexture: 'standard',
+      environmentDetail: 'high_complexity',
+      reflectiveSurfaces: false
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.MOTIVATED,
+      preferredRatios: 'balanced',
+      fillLightIntensity: 'subtle'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'off_camera',
+      eyeContact: false,
+      movementStyle: 'dynamic'
+    },
+    defaultAspectRatio: AspectRatio.CINEMA
+  },
+  {
+    id: 'luxury-premium',
+    name: 'Luxury / Premium Brand',
+    prompt: 'ultra-premium luxury brand aesthetic, elegant slow motion, rich blacks, sophisticated color grading, aspirational lifestyle, meticulous detail, high-end production value',
+    negativePrompt: 'cheap, fast, messy, low budget, amateur, bright colors, casual',
+    defaultCamera: CameraBody.ARRI_ALEXA_65,
+    defaultLens: LensType.PANAVISION_PRIMO,
+    defaultTextureConfig: {
+      skinDetail: 'smooth',
+      skinImperfections: false,
+      fabricTexture: 'high_fidelity',
+      environmentDetail: 'minimalist',
+      reflectiveSurfaces: true
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.REMBRANDT,
+      preferredRatios: 'high_contrast',
+      fillLightIntensity: 'subtle'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'off_camera',
+      eyeContact: false,
+      movementStyle: 'minimal'
+    },
+    defaultAspectRatio: AspectRatio.CINEMA
+  },
+  {
+    id: 'gaming-esports',
+    name: 'Gaming / Esports',
+    prompt: 'esports tournament atmosphere, RGB lighting, competitive gaming, dramatic player shots, screen glows, high energy, broadcast graphics ready, intense competition',
+    negativePrompt: 'outdoor, natural, vintage, film grain, slow, documentary, peaceful',
+    defaultCamera: CameraBody.RED_KOMODO,
+    defaultLens: LensType.SIGMA_CINE,
+    defaultTextureConfig: {
+      skinDetail: 'smooth',
+      skinImperfections: false,
+      fabricTexture: 'standard',
+      environmentDetail: 'high_complexity',
+      reflectiveSurfaces: true
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.HARD_DIRECTIONAL,
+      preferredRatios: 'high_contrast',
+      fillLightIntensity: 'none'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'off_camera',
+      eyeContact: false,
+      movementStyle: 'dynamic'
+    },
+    defaultAspectRatio: AspectRatio.WIDESCREEN
+  },
+  {
+    id: 'social-vertical',
+    name: 'Social Media / Vertical',
+    prompt: 'TikTok and Instagram Reels optimized, punchy colors, high saturation, trendy aesthetic, fast-paced, attention-grabbing, mobile-first, viral potential',
+    negativePrompt: 'cinematic bars, widescreen, slow, documentary, muted, boring',
+    defaultCamera: CameraBody.SONY_FX3,
+    defaultLens: LensType.SPHERICAL_PRIME,
+    defaultTextureConfig: {
+      skinDetail: 'smooth',
+      skinImperfections: false,
+      fabricTexture: 'standard',
+      environmentDetail: 'balanced',
+      reflectiveSurfaces: false
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.HIGH_KEY,
+      preferredRatios: 'low_contrast',
+      fillLightIntensity: 'strong'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'camera',
+      eyeContact: true,
+      movementStyle: 'dynamic'
+    },
+    defaultAspectRatio: AspectRatio.PORTRAIT
+  },
+  {
+    id: 'historical-period',
+    name: 'Historical / Period Drama',
+    prompt: 'period drama cinematography, classical painting inspired, warm candlelight, rich fabrics, historical authenticity, painterly quality, Rembrandt lighting, timeless elegance',
+    negativePrompt: 'modern, neon, futuristic, digital, clean, minimal, contemporary',
+    defaultCamera: CameraBody.ARRI_ALEXA_65,
+    defaultLens: LensType.VINTAGE_COOKE,
+    defaultTextureConfig: {
+      skinDetail: 'natural',
+      skinImperfections: true,
+      fabricTexture: 'visible_weave',
+      environmentDetail: 'high_complexity',
+      reflectiveSurfaces: false
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.REMBRANDT,
+      preferredRatios: 'high_contrast',
+      keyLightPosition: 'left',
+      fillLightIntensity: 'subtle'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'off_camera',
+      eyeContact: false,
+      movementStyle: 'natural'
+    },
+    defaultAspectRatio: AspectRatio.CINEMA
+  },
+  {
+    id: 'scifi-futuristic',
+    name: 'Sci-Fi / Futuristic',
+    prompt: 'science fiction aesthetic, clean futuristic design, cool blue tones, holographic elements, sleek technology, CGI-ready lighting, sterile environments, advanced civilization',
+    negativePrompt: 'vintage, warm, rustic, period, organic, messy, natural',
+    defaultCamera: CameraBody.RED_V_RAPTOR,
+    defaultLens: LensType.MODERN_ZEISS,
+    defaultTextureConfig: {
+      skinDetail: 'smooth',
+      skinImperfections: false,
+      fabricTexture: 'standard',
+      environmentDetail: 'minimalist',
+      reflectiveSurfaces: true
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.HIGH_KEY,
+      preferredRatios: 'low_contrast',
+      fillLightIntensity: 'strong'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'variable',
+      eyeContact: false,
+      movementStyle: 'stylized'
+    },
+    defaultAspectRatio: AspectRatio.CINEMA
+  },
+  {
+    id: 'real-estate',
+    name: 'Real Estate / Architecture',
+    prompt: 'professional real estate photography, wide interior shots, natural daylight, clean and bright spaces, architectural detail, property showcase, aspirational living, spacious',
+    negativePrompt: 'dark, cluttered, narrow, low quality, amateur, cramped',
+    defaultCamera: CameraBody.CANON_C500,
+    defaultLens: LensType.SPHERICAL_PRIME,
+    defaultTextureConfig: {
+      skinDetail: 'natural',
+      skinImperfections: false,
+      fabricTexture: 'high_fidelity',
+      environmentDetail: 'high_complexity',
+      reflectiveSurfaces: true
+    },
+    defaultLighting: {
+      globalStyle: LightingStyle.HIGH_KEY,
+      preferredRatios: 'low_contrast',
+      fillLightIntensity: 'strong'
+    },
+    defaultSubjectBehavior: {
+      gazeDirection: 'off_camera',
+      eyeContact: false,
       movementStyle: 'minimal'
     },
     defaultAspectRatio: AspectRatio.WIDESCREEN
